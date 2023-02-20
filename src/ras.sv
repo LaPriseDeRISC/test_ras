@@ -15,13 +15,21 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
     logic update_push_queue, update_pop_queue;
     logic write_push_head_next;
     
-    logic [ADDR-1:0] next_push_addr/*verilator public*/, next_pop_addr/*verilator public*/, next_deleted_addr, push_head_next_value, next_preserved_addr;
-    logic [ADDR-1:0] push_head, push_queue, pop_head, pop_queue, deleted_head, preserved_head;
+    logic [ADDR-1:0] next_push_addr/*verilator public*/, next_pop_addr/*verilator public*/,
+                     next_deleted_addr/*verilator public*/, push_head_next_value/*verilator public*/,
+                     next_preserved_addr/*verilator public*/;
+    logic [ADDR-1:0] push_head/*verilator public*/, push_queue/*verilator public*/,
+                     pop_head/*verilator public*/, pop_queue/*verilator public*/, 
+                     deleted_head/*verilator public*/, preserved_head/*verilator public*/;
         
     //logic has_deleted_values;
     logic has_added_values;
     logic in_branch;
-    
+    initial push_head = ADDR'(DEPTH-1);
+    initial push_queue = ADDR'(DEPTH-2);
+    initial pop_head = ADDR'(0);
+    initial pop_queue = ADDR'(1);
+
     //fifo #(.DEPTH(MAXBRANCHES), .WIDTH(1 + ADDR * 2), .ADDR(BRANCHES_ADDR))
     //branches(.clk(clk),
     //         .din({branch_added, branch_deleted, has_deleted_values}));
@@ -34,17 +42,17 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
     bram #(.DEPTH(DEPTH), .WIDTH(10), .ADDR(ADDR), .OFS(-1), .BLANK(0))
     prev_links(.clk(clk),
           .doa(push_queue), .ena(update_push_queue),
-          .dia('b0), .addra(push_queue), 
+          .dia(), .addra(push_queue), 
           .wea(1'b0),
           .dob(), .enb(1'b0),
-          .dib('b0), .addrb('b0), 
+          .dib(), .addrb(), 
           .web(1'b0)
           );
    
    bram #(.DEPTH(DEPTH), .WIDTH(10), .ADDR(ADDR), .OFS(1), .BLANK(0))
     next_links(.clk(clk),
           .doa(pop_queue), .ena(update_pop_queue),
-          .dia('b0), .addra(pop_queue), 
+          .dia(), .addra(pop_queue), 
           .wea(1'b0),
           .dob(), .enb(write_push_head_next),
           .dib(push_head_next_value), .addrb(push_head), 
