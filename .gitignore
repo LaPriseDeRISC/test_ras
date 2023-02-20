@@ -32,5 +32,5 @@
 *.app
 
 #build dir
-./build
-./test_ras.cache
+./build/
+./test_ras.*/
