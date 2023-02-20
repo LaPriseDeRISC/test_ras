@@ -3,9 +3,9 @@
 module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
     //parameter MAXBRANCHES = 1024;
     //parameter BRANCHES_ADDR = 10;
-    parameter DEPTH = 1024;
+    parameter DEPTH = 16;
     parameter WIDTH = 32;
-    parameter ADDR = 10;;          
+    parameter ADDR = 4;
     input clk, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
@@ -39,7 +39,7 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
          .doa(dout), .dia(data_writeback), .addra(next_pop_addr), .ena(pop), .wea(rewrite_pop_value),
          .dib(din), .dob(data_writeback), .addrb(next_push_addr), .enb(push), .web(push));
     /* verilator lint_off PINCONNECTEMPTY */
-    bram #(.DEPTH(DEPTH), .WIDTH(10), .ADDR(ADDR), .OFS(-1), .BLANK(0))
+    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(-1), .BLANK(0))
     prev_links(.clk(clk),
           .doa(push_queue), .ena(update_push_queue),
           .dia(), .addra(push_queue), 
@@ -49,7 +49,7 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
           .web(1'b0)
           );
    
-   bram #(.DEPTH(DEPTH), .WIDTH(10), .ADDR(ADDR), .OFS(1), .BLANK(0))
+   bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(1), .BLANK(0))
     next_links(.clk(clk),
           .doa(pop_queue), .ena(update_pop_queue),
           .dia(), .addra(pop_queue), 
