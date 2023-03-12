@@ -10,7 +10,6 @@ module memory_allocator (clk,
     vector_previous, vector_start, vector_snd, vector_end, vector_next);
     parameter ADDR = 4;
     parameter DEPTH = 16;
-    parameter INITIAL_FETCH = 0;
     parameter DIRECTION = 1;
     
     input logic clk, alloc, de_alloc, reset, de_alloc_vector, vector_size_is_one, vector_size_is_two;
@@ -36,18 +35,12 @@ module memory_allocator (clk,
           .dob(port_b.output), .enb(port_b.read || port_b.write),
           .dib(port_b.input), .addrb(port_b.addr),
           .web(port_b.write)
-          );   
-          
-    initial begin
-         alloc_addr_ff = ADDR'(INITIAL_FETCH);
-         read_next_alloc_addr = 1'b1;
-    end
+          );
     
     assign alloc_addr = de_alloc_vector ? vector_start : alloc_addr_ff;
 
-    assign next_alloc_addr = (read_next_alloc_addr ? port_a.output : // read from port_a
-                             next_alloc_addr_ff);                    // default from the ff
-
+    assign next_alloc_addr = read_next_alloc_addr ? port_a.output : // read from port_a
+                             next_alloc_addr_ff;                    // default from the ff
 
 /** logic of the BRAM control
     always_comb begin
@@ -90,14 +83,14 @@ module memory_allocator (clk,
             link_next_addr <= vector_end;
             link_next_data <= alloc_addr_ff;
             if(alloc)
-                alloc_addr_ff <= (vector_size_is_one ? alloc_addr_ff : vector_snd); //vector_start is consumed
+                alloc_addr_ff <= vector_size_is_one ? alloc_addr_ff : vector_snd; //vector_start is consumed
             else
                 alloc_addr_ff <= vector_start; //
         end else if(reset)
             alloc_addr_ff <= reset_addr; //reset to given addr
         else begin
-            if(alloc) <= next_alloc_addr;
-            if(de_alloc) <= last_alloc_addr; //easy enough
+            if(alloc) alloc_addr_ff <= next_alloc_addr;
+            if(de_alloc) alloc_addr_ff <= last_alloc_addr; //easy enough
         end
         de_alloc_vector_end <= de_alloc_vector;
     end
@@ -109,7 +102,7 @@ module memory_allocator (clk,
                                       (vector_size_is_two ? alloc_addr_ff : vector_thd); //vector_start and snd are consumed
             else
                 next_alloc_addr_ff <= vector_size_is_one ? alloc_addr_ff : vector_snd; //
-        end else if(de_alloc) next_alloc_addr_ff <= alloc_addr; //easy enough
+        end else if(de_alloc) next_alloc_addr_ff <= alloc_addr_ff; //easy enough
         else if(read_next_alloc_addr) next_alloc_addr_ff <= port_a.output;
 
         read_next_alloc_addr <= (reset  || (alloc && !de_alloc_vector));
