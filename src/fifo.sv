@@ -5,11 +5,12 @@ module fifo (clk, rst, wen, pop, empty, din, dout);
     parameter WIDTH = 36;
     parameter ADDR = 10;
     input clk, rst, wen, pop;
-    output reg empty;
+    output logic empty;
     input [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
     reg [WIDTH-1:0] ram [DEPTH-1:0];
-    reg [ADDR-1:0] raddr, waddr;
+    logic [ADDR-1:0] raddr, waddr;
+    initial empty = 1'b1;
     
     always @(posedge clk)
     begin
@@ -17,8 +18,10 @@ module fifo (clk, rst, wen, pop, empty, din, dout);
         begin
             raddr <= '0;
             waddr <= '0;
+            empty <= '0;
         end else begin 
-            dout <= ram[raddr];
+            if(pop && wen && waddr == raddr) dout <= din; //write_first
+            else dout <= ram[raddr];
             if (pop) begin
                  raddr <= raddr + 1'b1;
             end 
@@ -26,8 +29,12 @@ module fifo (clk, rst, wen, pop, empty, din, dout);
                  ram[waddr] <= din;
                  waddr <= waddr + 1'b1;
             end
-            if(pop) empty <= (((raddr + 1'b1 == waddr) && (!wen)) ? 1'b1 : 1'b0);
-            else empty <= (wen ? 1'b0 : empty);
+            if(pop ^ wen) begin
+                if(pop) 
+                    empty <= ((raddr + 1'b1 == waddr) ? 1'b1 : 1'b0);
+                else // wen
+                    empty <= 1'b0;
+            end             
         end
     end
     

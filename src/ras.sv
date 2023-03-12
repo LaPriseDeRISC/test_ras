@@ -1,88 +1,114 @@
 `timescale 1ns / 1ps
-
-module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout);
-    //parameter MAXBRANCHES = 1024;
-    //parameter BRANCHES_ADDR = 10;
+/* verilator lint_off UNUSEDSIGNAL */
+module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_valid);
+    parameter MAXBRANCHES = 16;
+    parameter BRANCHES_ADDR = 4;
     parameter DEPTH = 16;
     parameter WIDTH = 32;
     parameter ADDR = 4;
-    input clk, pop, push, branch, close_valid, close_invalid;
+    input logic clk, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
-    logic [WIDTH-1:0] data_writeback;
-    logic rewrite_pop_value;
+    output logic pop_valid;
     
-    logic update_push_queue, update_pop_queue;
-    logic write_push_head_next;
+    logic [ADDR-1:0] BOSP/*verilator public*/;
+    logic in_branch/*verilator public*/;
+    logic branch_list_empty/*verilator public*/;
+    logic has_added/*verilator public*/, has_one_suppressed, has_suppressed/*verilator public*/;
+    logic [ADDR-1:0] pop_head/*verilator public*/, a_end/*verilator public*/,
+                     s_head/*verilator public*/, s_queue/*verilator public*/, s_tail/*verilator public*/,
+                     ef_start/*verilator public*/, push_head/*verilator public*/;
+    logic [ADDR-1:0] ef_start_archived, a_end_archived,
+                     s_head_archived, s_queue_archived, s_tail_archived,
+                     has_one_suppressed_archived, has_suppressed_archived;
+    logic [ADDR-1:0] pop_queue/*verilator public*/;
     
-    logic [ADDR-1:0] next_push_addr/*verilator public*/, next_pop_addr/*verilator public*/,
-                     next_deleted_addr/*verilator public*/, push_head_next_value/*verilator public*/,
-                     next_preserved_addr/*verilator public*/;
-    logic [ADDR-1:0] push_head/*verilator public*/, push_queue/*verilator public*/,
-                     pop_head/*verilator public*/, pop_queue/*verilator public*/, 
-                     deleted_head/*verilator public*/, preserved_head/*verilator public*/;
-        
-    //logic has_deleted_values;
-    logic has_added_values;
-    logic in_branch;
-    initial push_head = ADDR'(DEPTH-1);
-    initial push_queue = ADDR'(DEPTH-2);
-    initial pop_head = ADDR'(0);
-    initial pop_queue = ADDR'(1);
-
-    //fifo #(.DEPTH(MAXBRANCHES), .WIDTH(1 + ADDR * 2), .ADDR(BRANCHES_ADDR))
-    //branches(.clk(clk),
-    //         .din({branch_added, branch_deleted, has_deleted_values}));
+    
+            
+    initial BOSP = ADDR'(DEPTH - 1);
+    initial pop_head = BOSP;
+    initial push_head = pop_head + 1;
+    initial s_head = pop_head;
+    initial s_queue = s_head;
+    initial s_tail = s_head;
+    initial a_end = push_head;
+    initial ef_start = pop_head;
+    
+    logic empty/*verilator public*/; 
+        assign empty = (pop_head == BOSP);
+    logic full/*verilator public*/; 
+        assign full = (push_head == BOSP);
+    assign pop_valid = (pop && !empty);
+    
+    logic allocate_mem, free_mem, fetch_mem, free_vec_mem;
+    logic [ADDR-1:0] alloc_addr, free_addr;
+    
+    /* verilator lint_off PINCONNECTEMPTY */     
+    
+    memory_allocator #(.ADDR(ADDR), .DEPTH(DEPTH), .INITIAL_FETCH(0), .DIRECTION(1))
+    memory(.clk(clk),
+            .alloc(allocate_mem), .free(free_mem), .fetch(fetch_mem), .free_vector(free_vec_mem),
+            .free_addr(free_addr), .alloc_addr(alloc_addr), .fetch_addr(a_end_archived),
+            .vector_size_is_one(has_one_suppressed_archived), 
+            .vector_start(s_head_archived), .vector_snd(s_queue_archived), .vector_end(s_tail_archived));
              
     bram #(.DEPTH(DEPTH), .WIDTH(32), .ADDR(ADDR))
     data(.clk(clk),
-         .doa(dout), .dia(data_writeback), .addra(next_pop_addr), .ena(pop), .wea(rewrite_pop_value),
-         .dib(din), .dob(data_writeback), .addrb(next_push_addr), .enb(push), .web(push));
-    /* verilator lint_off PINCONNECTEMPTY */
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(-1), .BLANK(0))
-    prev_links(.clk(clk),
-          .doa(push_queue), .ena(update_push_queue),
-          .dia(), .addra(push_queue), 
-          .wea(1'b0),
+         .doa(dout), .dia(), .addra(free_addr), .ena(pop), .wea(1'b0),
+         .dib(din), .dob(), .addrb(allocate_mem ? alloc_addr : free_addr), .enb(push), .web(push));
+
+    fifo #(.DEPTH(MAXBRANCHES), .WIDTH(ADDR * 5 + 2), .ADDR(BRANCHES_ADDR))
+    branches(.clk(clk),
+             .din({ef_start, a_end, s_head, s_queue, s_tail,
+                    has_one_suppressed, has_suppressed}),
+             .dout({ef_start_archived, a_end_archived, s_head_archived, s_queue_archived, s_tail_archived,
+                    has_one_suppressed_archived, has_suppressed_archived}),
+             .wen((in_branch && branch_list_empty) || branch), 
+             .pop(((in_branch ^ branch) && branch_list_empty) || close_valid),
+             .empty(branch_list_empty),
+             .rst(close_invalid));
+     
+     bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(-1), .BLANK(0))
+     next_links(.clk(clk),
+          .doa(free_addr), .ena(allocate_mem),
+          .dia(free_addr), .addra(alloc_addr),
+          .wea(allocate_mem),
           .dob(), .enb(1'b0),
           .dib(), .addrb(), 
           .web(1'b0)
           );
-   
-   bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(1), .BLANK(0))
-    next_links(.clk(clk),
-          .doa(pop_queue), .ena(update_pop_queue),
-          .dia(), .addra(pop_queue), 
-          .wea(1'b0),
-          .dob(), .enb(write_push_head_next),
-          .dib(push_head_next_value), .addrb(push_head), 
-          .web(write_push_head_next)
-          );
-   /* verilator lint_on PINCONNECTEMPTY */
-   always_comb begin
-        rewrite_pop_value = pop && push && !(in_branch && ! has_added_values);
-        write_push_head_next = push && (!rewrite_pop_value);
-        update_pop_queue = pop && !push;
-        update_push_queue = push;
-        push_head_next_value = (pop && push) ? pop_queue : pop_head;
-        next_push_addr = push ? (rewrite_pop_value ? push_head : push_queue) :
-                         (pop && !(in_branch && ! has_added_values) ? pop_head : push_head) ;
-        next_pop_addr = push ? (rewrite_pop_value ? pop_head : push_head) : 
-                         (pop ? pop_queue : pop_head); 
-        next_deleted_addr = pop && (in_branch && ! has_added_values) ? pop_head : deleted_head;
-        next_preserved_addr = pop && (in_branch && ! has_added_values) ? pop_queue : preserved_head;
-   end     
     
-    always_ff @(posedge clk) begin
-    	preserved_head <= next_preserved_addr;
-    	in_branch <= (close_valid || close_invalid) ? 1'b0 : (branch ? 1'b1 : in_branch);
-        push_head <= next_push_addr;
-        pop_head <= next_pop_addr;
-        deleted_head <= next_deleted_addr;
-        has_added_values <= (next_preserved_addr == next_pop_addr) ? 1'b0 : 1'b1;
-    end
+   /* verilator lint_on PINCONNECTEMPTY */
+   logic data_is_protected;
+   assign data_is_protected = (in_branch && !has_added);
+   assign free_mem = pop && !data_is_protected && !push;
+   assign allocate_mem = push && !(pop || data_is_protected);
+   assign fetch_mem = close_invalid;
+   assign free_vec_mem = close_valid && has_suppressed_archived;
+    
+   always_ff @(posedge clk) begin
+        if(branch) begin
+            in_branch <= 1'b1;
+            has_added <= 1'b0;
+            ef_start <= ;
+            a_end <= ;
+            s_head <= ;
+            s_queue <= ;
+            s_tail <= ;
+            has_suppressed <= 1'b0;
+            has_one_suppressed <= 1'b0;
+        end
+        else if(close_invalid)
+            in_branch <= 1'b0;
+        else if(close_valid)
+            in_branch <= !branch_list_empty;
+        if(in_branch) begin
+            if(push) 
+        end
+   end
     
     
     
 endmodule
+/* verilator lint_on UNUSEDSIGNAL */
 
