@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 /* verilator lint_off UNUSEDSIGNAL */
-//allocations and de-allocations are performed in order :
-//eg. alloc()->1, alloc()->2, alloc()->3, free(3), free(2), alloc()->2, free(2), free(1)
+// allocations and de-allocations are performed in order and
+// in a circular manner (oldest allocations are last proposed)
 module memory_allocator (clk, 
     alloc, de_alloc, reset, de_alloc_vector,
     last_alloc_addr, reset_addr, alloc_addr,
@@ -42,54 +42,32 @@ module memory_allocator (clk,
          alloc_addr_ff = ADDR'(INITIAL_FETCH);
          read_next_alloc_addr = 1'b1;
     end
-          
-//    always_ff @(posedge clk) begin
-//         if(reset)
-//             alloc_addr_ff <= reset_addr;
-//         else if(de_alloc)
-//             alloc_addr_ff <= free_addr;
-//         else if(alloc && de_alloc_vector)
-//             alloc_addr_ff <= vector_start;
-//         else if(read_alloc_addr)
-//             alloc_addr_ff <= free_vector_port_a;
-//         read_alloc_addr <= !free_vector && alloc;
-//    end
-    
-//    always_ff @(posedge clk) begin
-//         if(de_alloc)
-//             next_alloc_addr_ff <= alloc_addr;
-//         else if(alloc && de_alloc_vector && !vector_size_is_one)
-//             next_alloc_addr_ff <= vector_snd;
-//         else if(de_alloc_vector)
-//             next_alloc_addr_ff <= vector_start;
-//         else if(read_next_alloc_addr)
-//             next_alloc_addr_ff <= free_vector_port_b;
-//         read_next_alloc_addr <= (!free_vector && alloc) || fetch;
-//    end
     
     assign alloc_addr = de_alloc_vector ? vector_start : alloc_addr_ff;
 
     assign next_alloc_addr = (read_next_alloc_addr ? port_a.output : // read from port_a
                              next_alloc_addr_ff);                    // default from the ff
+
+
 /** logic of the BRAM control
     always_comb begin
         if(de_alloc_vector) begin
-            port_a_addr = vector_previous;
-            port_a_data = vector_next;
-            port_a_write = 1'b1;
-            port_b_addr = last_alloc_addr;
-            port_b_data = vector_start;
-            port_b_write = 1'b1;
+            port_a.addr = vector_previous;
+            port_a.input = vector_next;
+            port_a.write = 1'b1;
+            port_b.addr = last_alloc_addr;
+            port_b.input = vector_start;
+            port_b.write = 1'b1;
         end else if(de_alloc_vector_end) begin
-            port_b_addr = link_next_addr;
-            port_b_data = link_next_data;
-            port_b_write = 1'b1;
+            port_b.addr = link_next_addr;
+            port_b.input = link_next_data;
+            port_b.write = 1'b1;
             if(reset) begin
-                port_a_addr = reset_addr;
-                port_a_read = 1'b1;
+                port_a.addr = reset_addr;
+                port_a.read = 1'b1;
             end else if(alloc) begin
-                port_a_addr = next_alloc_addr;
-                port_a_read = 1'b1;
+                port_a.addr = next_alloc_addr;
+                port_a.read = 1'b1;
             end
         end
     end
@@ -104,7 +82,6 @@ module memory_allocator (clk,
     assign port_b.input = de_alloc_vector_end ? link_next_data : vector_start;
     assign port_b.read  = 1'b0;
     assign port_b.write = de_alloc_vector_end || de_alloc_vector;
-
        
     always_ff @(posedge clk) begin
         if(de_alloc_vector) begin
