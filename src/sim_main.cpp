@@ -25,10 +25,8 @@ void close_module() {
     delete contextp;
 }
 
-uint32_t process(bool pop, bool push, bool branch, bool close_valid, bool close_invalid, uint32_t din) {
+void next_input(bool pop, bool push, bool branch, bool close_valid, bool close_invalid, uint32_t din) {
     top->clk = 0;
-    top->eval();
-    top->clk = 1;
     top->pop = pop;
     top->push = push;
     top->branch = branch;
@@ -36,15 +34,12 @@ uint32_t process(bool pop, bool push, bool branch, bool close_valid, bool close_
     top->close_invalid = close_invalid;
     top->din = din;
     top->eval();
+}
+
+uint32_t process(){
+    top->clk = 1;
+    top->eval();
     return top->dout;
-}
-
-uint16_t get_next_push_addr() {
-    return top->ras->next_push_addr;
-}
-
-uint16_t get_next_pop_addr() {
-    return top->ras->next_pop_addr;
 }
 
 TO_ARRAY_CONTAINER(top->ras->next_links->ram.m_storage) get_next_links() {
@@ -68,17 +63,32 @@ TO_ARRAY_CONTAINER(top->ras->data->ram.m_storage) get_data() {
 }
 
 void infos() {
-    py::print("next_push_addr :", top->ras->next_push_addr);
-    py::print("next_pop_addr :", top->ras->next_pop_addr);
-    py::print("next_deleted_addr :", top->ras->next_deleted_addr);
-    py::print("push_head_next_value :", top->ras->push_head_next_value);
-    py::print("next_preserved_addr :", top->ras->next_preserved_addr);
     py::print("push_head :", top->ras->push_head);
-    py::print("push_queue :", top->ras->push_queue);
     py::print("pop_head :", top->ras->pop_head);
-    py::print("pop_queue :", top->ras->pop_queue);
-    py::print("deleted_head :", top->ras->deleted_head);
-    py::print("preserved_head :", top->ras->preserved_head);
+    py::print("empty :", top->ras->empty);
+    py::print("full :", top->ras->full);
+}
+
+void infos_branch() {
+    py::print("a : [", top->ras->pop_head, "..", top->ras->a_end, "]");
+    py::print("s : [", top->ras->s_head, ',', top->ras->s_queue, "..", top->ras->s_tail, "]");
+    py::print("e : [", top->ras->ef_start, "..", top->ras->BOSP, "]");
+    py::print("f : [", top->ras->BOSP, "..", top->ras->push_head, "]");
+    py::print("has_added :", top->ras->has_added);
+    py::print("has_suppressed :", top->ras->has_suppressed);
+    py::print("in_branch :", top->ras->in_branch);
+    py::print("branch_list_empty :", top->ras->branch_list_empty);
+}
+std::array<uint32_t, 15> raw_infos() {
+    return {top->ras->pop_head, top->ras->a_end,
+            top->ras->s_head, top->ras->s_queue,top->ras->s_tail,
+            top->ras->ef_start, top->ras->BOSP,
+            top->ras->BOSP, top->ras->push_head,
+            top->ras->push_queue, top->ras->pop_queue,
+            top->ras->has_added,
+            top->ras->has_suppressed,
+            top->ras->in_branch,
+            top->ras->branch_list_empty};
 }
 
 PYBIND11_MODULE(vras, m
@@ -88,7 +98,8 @@ m.
 doc() = "system_verilog ras module";
 
 m.def("init", &init, "Init of the module");
-m.def("process", &process, "Step in clock",
+m.def("process", &process, "Step in clock");
+m.def("next_input", &next_input, "Step in clock",
 py::arg("pop") = false,
 py::arg("push") = false,
 py::arg("branch") = false,
@@ -96,11 +107,12 @@ py::arg("close_valid") = false,
 py::arg("close_invalid") = false,
 py::arg("data_in") = 0);
 m.def("close", &close_module, "Close the module");
-m.def("next_push_addr", &get_next_push_addr, "next_push addr");
-m.def("next_pop_addr", &get_next_pop_addr, "next_pop addr");
 m.def("infos", &infos, "various informations");
+m.def("infos_branch", &infos_branch, "various informations about current branch");
 m.def("next_links", &get_next_links, "next ptrs");
 m.def("prev_links", &get_prev_links, "prev ptrs");
+m.def("output_valid", [](){return top->pop_valid;});
+m.def("raw_info", &raw_infos);
 m.def("data", &get_data, "data");
 }
 

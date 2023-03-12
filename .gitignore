@@ -34,3 +34,5 @@
 #build dir
 ./build/
 ./test_ras.*/
+/Digraph.gv
+/Digraph.gv.pdf
