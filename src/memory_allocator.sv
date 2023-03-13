@@ -7,53 +7,54 @@ module memory_allocator (clk,
     alloc, de_alloc, reset, de_alloc_vector,
     last_alloc_addr, reset_addr, alloc_addr,
     vector_size_is_one, vector_size_is_two,
-    vector_previous, vector_start, vector_snd, vector_end, vector_next);
+    vector_previous, vector_start, vector_snd, vector_thd, vector_end, vector_next);
     parameter ADDR = 4;
     parameter DEPTH = 16;
     parameter DIRECTION = 1;
     
     input logic clk, alloc, de_alloc, reset, de_alloc_vector, vector_size_is_one, vector_size_is_two;
     input logic [ADDR-1:0] last_alloc_addr, reset_addr;
-    input logic [ADDR-1:0] vector_previous, vector_start, vector_snd, vector_end, vector_next;
+    input logic [ADDR-1:0] vector_previous, vector_start, vector_snd, vector_thd, vector_end, vector_next;
     output logic [ADDR-1:0] alloc_addr;
    
     logic [ADDR-1:0] next_alloc_addr, next_alloc_addr_ff;
     logic [ADDR-1:0] /*alloc_addr, */ alloc_addr_ff;
-    logic read_next_alloc_addr;
+    logic [ADDR-1:0] link_next_addr, link_next_data;
+    logic read_next_alloc_addr, de_alloc_vector_end;
     
     logic [ADDR-1:0] free_vector_port_a, free_vector_port_b;
     struct {
         logic read, write;
-        logic [ADDR-1:0] output, input, addr;
+        logic [ADDR-1:0] out, in, addr;
      } port_a, port_b;
     
     bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(DIRECTION), .BLANK(0))
     free_data(.clk(clk),
-          .doa(port_a.output), .ena(port_a.read || port_a.write),
-          .dia(port_a.input), .addra(port_a.addr),
+          .doa(port_a.out), .ena(port_a.read || port_a.write),
+          .dia(port_a.in), .addra(port_a.addr),
           .wea(port_a.write),
-          .dob(port_b.output), .enb(port_b.read || port_b.write),
-          .dib(port_b.input), .addrb(port_b.addr),
+          .dob(port_b.out), .enb(port_b.read || port_b.write),
+          .dib(port_b.in), .addrb(port_b.addr),
           .web(port_b.write)
           );
     
     assign alloc_addr = de_alloc_vector ? vector_start : alloc_addr_ff;
 
-    assign next_alloc_addr = read_next_alloc_addr ? port_a.output : // read from port_a
+    assign next_alloc_addr = read_next_alloc_addr ? port_a.out : // read from port_a
                              next_alloc_addr_ff;                    // default from the ff
 
 /** logic of the BRAM control
     always_comb begin
         if(de_alloc_vector) begin
             port_a.addr = vector_previous;
-            port_a.input = vector_next;
+            port_a.in    = vector_next;
             port_a.write = 1'b1;
             port_b.addr = last_alloc_addr;
-            port_b.input = vector_start;
+            port_b.in    = vector_start;
             port_b.write = 1'b1;
         end else if(de_alloc_vector_end) begin
             port_b.addr = link_next_addr;
-            port_b.input = link_next_data;
+            port_b.in    = link_next_data;
             port_b.write = 1'b1;
             if(reset) begin
                 port_a.addr = reset_addr;
@@ -67,12 +68,12 @@ module memory_allocator (clk,
     */
 
     assign port_a.addr  = reset ? reset_addr : vector_previous;
-    assign port_a.input = vector_next;
+    assign port_a.in    = vector_next;
     assign port_a.read  = (reset  || (alloc && !de_alloc_vector));
     assign port_a.write = de_alloc_vector;
 
     assign port_b.addr  = de_alloc_vector_end ? link_next_addr : last_alloc_addr;
-    assign port_b.input = de_alloc_vector_end ? link_next_data : vector_start;
+    assign port_b.in    = de_alloc_vector_end ? link_next_data : vector_start;
     assign port_b.read  = 1'b0;
     assign port_b.write = de_alloc_vector_end || de_alloc_vector;
        
@@ -103,7 +104,7 @@ module memory_allocator (clk,
             else
                 next_alloc_addr_ff <= vector_size_is_one ? alloc_addr_ff : vector_snd; //
         end else if(de_alloc) next_alloc_addr_ff <= alloc_addr_ff; //easy enough
-        else if(read_next_alloc_addr) next_alloc_addr_ff <= port_a.output;
+        else if(read_next_alloc_addr) next_alloc_addr_ff <= port_a.out;
 
         read_next_alloc_addr <= (reset  || (alloc && !de_alloc_vector));
     end
