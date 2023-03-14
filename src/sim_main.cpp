@@ -92,7 +92,7 @@ py::arg("data_in") = 0);
 m.def("close", &close_module, "Close the module");
 m.def("next_links", &get_next_links, "next ptrs");
 m.def("free_slots", &get_free_slots, "prev ptrs");
-m.def("output_valid", [](){return top->pop_valid;});
+m.def("empty", [](){return top->empty;});
 m.def("raw_info", &raw_infos);
 m.def("branch_infos", &get_current_branch_infos);
 m.def("data", &get_data, "data");

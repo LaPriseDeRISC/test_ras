@@ -86,14 +86,15 @@ def push(v, verbose=False):
 
 
 def pop(verbose=False):
-    out = vras.next_input(pop=1)
+    empty = vras.empty()
+    vras.next_input(pop=1)
     if verbose:
         get_infos()
-    vras.process()
+    out = vras.process()
     if verbose:
         get_infos()
     print_graph()
-    if vras.output_valid():
+    if not empty:
         return out
     return None
 

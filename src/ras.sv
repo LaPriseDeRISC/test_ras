@@ -1,7 +1,7 @@
 `timescale 1ns / 1ps
 
 /* verilator lint_off UNUSEDSIGNAL */
-module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_valid);
+module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty);
     parameter MAXBRANCHES = 16;
     parameter BRANCHES_ADDR = 4;
     parameter DEPTH = 16;
@@ -12,7 +12,8 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_v
     input logic clk, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
-    output logic pop_valid;
+    output logic empty;
+    logic pop_valid;
 
     logic [ADDR-1:0] BOSP/*verilator public*/;
     logic in_branch/*verilator public*/;
@@ -24,9 +25,7 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_v
     } vector_t;
     initial BOSP = ADDR'(INITIAL_ADDR-1);
     initial last_alloc_addr_ff = BOSP;
-
-    logic empty/*verilator public*/;
-        assign empty = (last_alloc_addr == BOSP);
+    assign empty = (last_alloc_addr == BOSP);
     assign pop_valid = (pop && !empty);
 
     logic allocate_mem, de_alloc_mem, reset_mem, de_alloc_vec_mem, read_last_alloc;
@@ -44,7 +43,7 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_v
 
     bram #(.DEPTH(DEPTH), .WIDTH(32), .ADDR(ADDR))
     data(.clk(clk),
-        .doa(dout), .dia(), .addra(last_alloc_addr), .ena(pop), .wea(1'b0),
+        .doa(dout), .dia(), .addra(last_alloc_addr), .ena(pop_valid), .wea(1'b0),
         .dib(din), .dob(), .addrb(allocate_mem ? alloc_addr : last_alloc_addr), .enb(push), .web(push));
 
     fifo #(.DEPTH(MAXBRANCHES), .WIDTH($bits(vector_t) + 1), .ADDR(BRANCHES_ADDR))
@@ -70,8 +69,8 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_v
     /* verilator lint_on PINCONNECTEMPTY */
     logic data_is_protected;
     assign data_is_protected = (in_branch && !current_branch_has_added);
-    assign de_alloc_mem = pop && !data_is_protected && !push;
-    assign allocate_mem = push && !(pop || data_is_protected);
+    assign de_alloc_mem = pop_valid && !data_is_protected && !push;
+    assign allocate_mem = push && (!pop_valid || data_is_protected);
     assign reset_mem = close_invalid;
     assign reset_addr = free_vec_intf.previous;
     assign de_alloc_vec_mem = close_valid && vector_has_suppressed;
@@ -95,7 +94,7 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, pop_v
         end
         else if(close_valid)
             in_branch <= !branch_list_empty;
-        if(pop) begin
+        if(pop_valid) begin
             if(data_is_protected) begin
                 current_branch_has_suppressed <= 1'b1;
                 current_branch_vector.head <= last_alloc_addr;
