@@ -97,7 +97,7 @@ module memory_allocator (clk,
             if(alloc)
                 alloc_addr_ff <= vec_intf.size_is_one ? alloc_addr_ff : vec_intf.second; //head is consumed
             else
-                alloc_addr_ff <= vec_intf.head; //
+                alloc_addr_ff <= de_alloc ? last_alloc_addr : vec_intf.head; //
         end else if(reset)
             alloc_addr_ff <= reset_addr; //reset to given addr
         else begin
@@ -113,7 +113,7 @@ module memory_allocator (clk,
                 next_alloc_addr_ff <= vec_intf.size_is_one ? next_alloc_addr :
                                       (vec_intf.size_is_two ? alloc_addr_ff : vec_intf.third); //head and snd are consumed
             else
-                next_alloc_addr_ff <= vec_intf.size_is_one ? alloc_addr_ff : vec_intf.second; //
+                next_alloc_addr_ff <= (vec_intf.size_is_one || de_alloc)? alloc_addr_ff : vec_intf.second; //
         end else if(de_alloc) next_alloc_addr_ff <= alloc_addr_ff; //easy enough
         else if(read_next_alloc_addr) next_alloc_addr_ff <= port_a.out;
 
