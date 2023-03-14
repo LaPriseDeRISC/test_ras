@@ -62,16 +62,12 @@ TO_ARRAY_CONTAINER(top->ras->data->ram.m_storage) get_data() {
     return a;
 }
 
-std::array<uint32_t, 15> raw_infos() {
-    return {top->ras->pop_head, top->ras->a_end,
-            top->ras->s_head, top->ras->s_queue,top->ras->s_tail,
-            top->ras->ef_start, top->ras->BOSP,
-            top->ras->BOSP, top->ras->push_head,
-            top->ras->push_queue, top->ras->pop_queue,
-            top->ras->has_added,
-            top->ras->has_suppressed,
-            top->ras->in_branch,
-            top->ras->branch_list_empty};
+std::array<uint32_t,7> raw_infos() {
+    return {top->ras->alloc_addr, top->ras->last_alloc_addr,
+            top->ras->in_branch, top->ras->branch_list_empty,
+            top->ras->current_branch_has_added, top->ras->current_branch_has_suppressed,
+            top->ras->BOSP
+            };
 }
 
 PYBIND11_MODULE(vras, m
