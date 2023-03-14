@@ -28,8 +28,9 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
     assign empty = (last_alloc_addr == BOSP);
     assign pop_valid = (pop && !empty);
 
-    logic allocate_mem, de_alloc_mem, reset_mem, de_alloc_vec_mem, read_last_alloc;
-    logic [ADDR-1:0] alloc_addr/*verilator public*/, reset_addr, last_alloc_addr/*verilator public*/, last_alloc_mem_out, last_alloc_addr_ff;
+    logic allocate_mem, de_alloc_mem, reset_mem, de_alloc_vec_mem, read_last_alloc, read_branch_previous;
+    logic [ADDR-1:0] alloc_addr/*verilator public*/, reset_addr, last_alloc_addr/*verilator public*/,
+        last_alloc_mem_out, last_alloc_addr_ff, current_branch_vector_previous_ff;
 
     /* verilator lint_off PINCONNECTEMPTY */
 
@@ -64,17 +65,19 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
         .empty(branch_list_empty),
         .rst(close_invalid));
 
-     bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(-1), .BLANK(0))
+     bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .BLANK(1))
      next_links(.clk(clk),
         .doa(), .ena(allocate_mem),
         .dia(last_alloc_addr), .addra(alloc_addr),
         .wea(allocate_mem),
-        .dob(last_alloc_mem_out), .enb(de_alloc_mem || reset_mem),
-        .dib(), .addrb(reset_mem ? free_vec_intf.previous : last_alloc_addr),
+        .dob(last_alloc_mem_out), .enb((pop_valid && !push) || reset_mem),
+        .dib(), .addrb(reset_mem ? reset_addr : last_alloc_addr),
         .web(1'b0)
         );
 
     assign last_alloc_addr = read_last_alloc ? last_alloc_mem_out : last_alloc_addr_ff;
+    assign current_branch_vector_previous = read_last_alloc && read_branch_previous ?
+                last_alloc_mem_out : current_branch_vector_previous_ff;
     /* verilator lint_on PINCONNECTEMPTY */
     logic data_is_protected;
     assign data_is_protected = (in_branch && !current_branch_has_added);
@@ -85,11 +88,14 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
     assign de_alloc_vec_mem = close_valid && vector_has_suppressed;
     
     always_ff @(posedge clk) begin
-        read_last_alloc <= de_alloc_mem || reset_mem;
+        read_last_alloc <= (pop_valid && !push) || reset_mem;
+        read_branch_previous <= data_is_protected;
         if(allocate_mem)
             last_alloc_addr_ff <= alloc_addr;
         else if(read_last_alloc)
             last_alloc_addr_ff <= last_alloc_mem_out;
+        if(read_last_alloc && read_branch_previous)
+            current_branch_vector_previous_ff <= last_alloc_mem_out;
         if(close_invalid)
             in_branch <= 1'b0;
         else if(branch) begin
