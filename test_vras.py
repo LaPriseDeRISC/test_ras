@@ -4,16 +4,21 @@ import graphviz
 
 def get_infos():
     raw_infos = vras.raw_info()
-    names = ["pop_head", "a_end",
-             "s_head", "s_queue", "s_tail",
-             "ef_start", "BOSP",
-             "BOSP", "push_head",
-             "push_queue", "pop_queue",
-             "has_added",
-             "has_suppressed",
-             "in_branch",
-             "branch_list_empty"]
-    return dict(zip(names, raw_infos))
+    branch_infos = vras.branch_infos()
+    names = ["alloc_addr", "last_alloc_addr",
+             "in_branch", "branch_list_empty",
+             "current_branch_has_added", "current_branch_has_suppressed",
+             "BOSP"]
+    out = dict(zip(names, raw_infos))
+    struct_map = {"vector_size_is_one": 1, "vector_size_is_two": 1,
+                  "vector_previous": 4, "vector_head": 4,
+                  "vector_second": 4, "vector_third": 4,
+                  "vector_tail": 4, "vector_next": 4}
+    idx = sum(struct_map.values())
+    for (k, v) in struct_map.items():
+        idx -= v
+        out[k] = (branch_infos & (((1 << v) -1) << idx)) >> idx
+    return out
 
 
 def print_graph():

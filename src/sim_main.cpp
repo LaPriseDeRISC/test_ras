@@ -70,6 +70,10 @@ std::array<uint32_t,7> raw_infos() {
             };
 }
 
+uint32_t get_current_branch_infos(){
+    return top->ras->current_branch_vector;
+}
+
 PYBIND11_MODULE(vras, m
 ) {
 m.
@@ -90,6 +94,7 @@ m.def("next_links", &get_next_links, "next ptrs");
 m.def("free_slots", &get_free_slots, "prev ptrs");
 m.def("output_valid", [](){return top->pop_valid;});
 m.def("raw_info", &raw_infos);
+m.def("branch_infos", &get_current_branch_infos);
 m.def("data", &get_data, "data");
 }
 
