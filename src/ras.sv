@@ -33,7 +33,11 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
 
     /* verilator lint_off PINCONNECTEMPTY */
 
-    vector_t current_branch_vector/*verilator public*/, free_vec_intf;
+    logic current_branch_vector_size_is_one/*verilator public*/, current_branch_vector_size_is_two/*verilator public*/;
+    logic [ADDR-1:0] current_branch_vector_previous/*verilator public*/, current_branch_vector_head/*verilator public*/,
+        current_branch_vector_second/*verilator public*/, current_branch_vector_third/*verilator public*/,
+        current_branch_vector_tail/*verilator public*/, current_branch_vector_next/*verilator public*/;
+    vector_t free_vec_intf;
 
     memory_allocator #(.ADDR(ADDR), .DEPTH(DEPTH), .DIRECTION(1), .INITIAL_ADDR(INITIAL_ADDR))
     memory(.clk(clk),
@@ -48,7 +52,12 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
 
     fifo #(.DEPTH(MAXBRANCHES), .WIDTH($bits(vector_t) + 1), .ADDR(BRANCHES_ADDR))
     branches(.clk(clk),
-        .din({current_branch_vector, current_branch_has_suppressed}),
+        .din({current_branch_vector_size_is_one, current_branch_vector_size_is_two,
+            current_branch_vector_previous, current_branch_vector_head,
+            current_branch_vector_second, current_branch_vector_third,
+            current_branch_vector_tail, current_branch_vector_next, current_branch_has_suppressed}),
+
+
         .dout({free_vec_intf, vector_has_suppressed}),
         .wen((in_branch && branch_list_empty) || branch),
         .pop(((in_branch ^ branch) && branch_list_empty) || close_valid),
@@ -87,23 +96,23 @@ module ras (clk, pop, push, branch, close_valid, close_invalid, din, dout, empty
             in_branch <= 1'b1;
             current_branch_has_added <= 1'b0;
             current_branch_has_suppressed <= 1'b0;
-            current_branch_vector.size_is_one <= 1'b0;
-            current_branch_vector.size_is_two <= 1'b0;
-            current_branch_vector.previous <= last_alloc_addr;
-            current_branch_vector.next <= alloc_addr;
+            current_branch_vector_size_is_one <= 1'b0;
+            current_branch_vector_size_is_two <= 1'b0;
+            current_branch_vector_previous_ff <= last_alloc_addr;
+            current_branch_vector_tail <= last_alloc_addr;
+            current_branch_vector_next <= alloc_addr;
         end
         else if(close_valid)
             in_branch <= !branch_list_empty;
         if(pop_valid) begin
             if(data_is_protected) begin
                 current_branch_has_suppressed <= 1'b1;
-                current_branch_vector.head <= last_alloc_addr;
-                current_branch_vector.size_is_one <= current_branch_has_suppressed;
-                current_branch_vector.second <= current_branch_vector.head;
-                current_branch_vector.size_is_two <= current_branch_vector.size_is_one;
-                current_branch_vector.third <= current_branch_vector.second;
-                current_branch_vector.tail <= alloc_addr;
-            end else if(in_branch && current_branch_vector.previous == last_alloc_addr) begin
+                current_branch_vector_head <= last_alloc_addr;
+                current_branch_vector_size_is_one <= !current_branch_has_suppressed;
+                current_branch_vector_second <= current_branch_vector_head;
+                current_branch_vector_size_is_two <= current_branch_vector_size_is_one;
+                current_branch_vector_third <= current_branch_vector_second;
+            end else if(in_branch && current_branch_vector_next == last_alloc_addr) begin
                 current_branch_has_added <= 1'b0;
             end
         end else

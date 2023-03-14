@@ -62,16 +62,16 @@ TO_ARRAY_CONTAINER(top->ras->data->ram.m_storage) get_data() {
     return a;
 }
 
-std::array<uint32_t,7> raw_infos() {
+std::array<uint32_t,15> raw_infos() {
     return {top->ras->alloc_addr, top->ras->last_alloc_addr,
             top->ras->in_branch, top->ras->branch_list_empty,
             top->ras->current_branch_has_added, top->ras->current_branch_has_suppressed,
-            top->ras->BOSP
+            top->ras->BOSP,
+            top->ras->current_branch_vector_size_is_one, top->ras->current_branch_vector_size_is_two,
+            top->ras->current_branch_vector_previous, top->ras->current_branch_vector_head,
+            top->ras->current_branch_vector_second, top->ras->current_branch_vector_third,
+            top->ras->current_branch_vector_tail, top->ras->current_branch_vector_next
             };
-}
-
-uint32_t get_current_branch_infos(){
-    return top->ras->current_branch_vector;
 }
 
 PYBIND11_MODULE(vras, m
@@ -94,7 +94,6 @@ m.def("next_links", &get_next_links, "next ptrs");
 m.def("free_slots", &get_free_slots, "prev ptrs");
 m.def("empty", [](){return top->empty;});
 m.def("raw_info", &raw_infos);
-m.def("branch_infos", &get_current_branch_infos);
 m.def("data", &get_data, "data");
 }
 
