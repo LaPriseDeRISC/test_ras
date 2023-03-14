@@ -22,51 +22,50 @@ def get_infos():
 
 
 def print_graph():
-    prev = vras.prev_links()
+    prev = vras.free_slots()
     next = vras.next_links()
     data = vras.data()
     infos = get_infos()
     dot = graphviz.Digraph(comment='Vras')
     dot.attr(rankdir='LR')
     indexes_avail = list(range(len(data)))
-    i = infos["BOSP"]
-    with dot.subgraph() as s: # preserved
+    with dot.subgraph() as s: # current elems
         s.attr(rank='same')
-        first = True
-        while i != (infos["ef_start"] if infos["in_branch"] else infos["pop_head"]) and i in indexes_avail:
+        i = infos["last_alloc_addr"]
+        while i != infos["BOSP"]:
+            if not i in indexes_avail:
+                break
             del indexes_avail[indexes_avail.index(i)] # remove from index_avail
-            i = prev[i]
             s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#EEEEEE')
+            s.edge(str(i), str(next[i]), color='blue')
             s.edge(str(i), str(prev[i]), color='red')
-            if not first:
+            i = next[i]
+    if infos["in_branch"] and infos["current_branch_has_suppressed"]:
+        with dot.subgraph() as s: # deleted
+            s.attr(rank='same')
+            i = infos["vector_head"]
+            while i != infos["vector_next"]:
+                if not i in indexes_avail:
+                    break
+                del indexes_avail[indexes_avail.index(i)] # remove from index_avail
+                s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#E9DF00')
+                s.edge(str(i), str(prev[i]), color='red')
                 s.edge(str(i), str(next[i]), color='blue')
-            first = False
-    if infos["in_branch"]:
-        if infos["has_suppressed"]:
-            with dot.subgraph() as s: # deleted
-                s.attr(rank='same')
-                while i != infos["s_head"] and i in indexes_avail:
-                    del indexes_avail[indexes_avail.index(i)] # remove from index_avail
-                    i = prev[i]
-                    s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#E9DF00')
-                    s.edge(str(i), str(prev[i]), color='red')
-                    s.edge(str(i), str(next[i]), color='blue')
-        if infos["has_added"]:
-            with dot.subgraph() as s: # added
-                s.attr(rank='same')
-                while i != infos["pop_head"] and i in indexes_avail:
-                    del indexes_avail[indexes_avail.index(i)] # remove from index_avail
-                    i = prev[i]
-                    s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#5C9EAD')
-                    s.edge(str(i), str(prev[i]), color='red')
-                    s.edge(str(i), str(next[i]), color='blue')
+                i = prev[i]
     with dot.subgraph() as s: # free
         s.attr(rank='same')
-        while i != infos["BOSP"] and i in indexes_avail:
+        i = infos["alloc_addr"]
+        while i != infos["BOSP"]:
+            if not i in indexes_avail:
+                break
             del indexes_avail[indexes_avail.index(i)] # remove from index_avail
-            i = prev[i]
             s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#FFFFFF')
             s.edge(str(i), str(prev[i]), color='red')
+            i = prev[i]
+        s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#FFFFFF')
+        s.edge(str(i), str(prev[i]), color='red')
+        del indexes_avail[indexes_avail.index(i)] # remove from index_avail
+
     with dot.subgraph() as s: # lost_idx
         s.attr(rank='same')
         for lost_i in indexes_avail:
