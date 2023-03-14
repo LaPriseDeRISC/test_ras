@@ -58,8 +58,8 @@ def print_graph():
             i = prev[i]
         s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#FFFFFF')
         s.edge(str(i), str(prev[i]), color='red')
-        #if i in indexes_avail:
-        del indexes_avail[indexes_avail.index(i)] # remove from index_avail
+        if i in indexes_avail:
+            del indexes_avail[indexes_avail.index(i)] # remove from index_avail
 
     with dot.subgraph() as s: # lost_idx
         #s.attr(rank='same')
