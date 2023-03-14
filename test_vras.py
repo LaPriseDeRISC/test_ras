@@ -24,7 +24,7 @@ def print_graph():
     dot.attr(rankdir='LR')
     indexes_avail = list(range(len(data)))
     with dot.subgraph() as s: # current elems
-        s.attr(rank='same')
+        #s.attr(rank='same')
         i = infos["last_alloc_addr"]
         while i != infos["BOSP"]:
             if not i in indexes_avail:
@@ -36,7 +36,7 @@ def print_graph():
             i = next[i]
     if infos["in_branch"] and infos["current_branch_has_suppressed"]:
         with dot.subgraph() as s: # deleted
-            s.attr(rank='same')
+            #s.attr(rank='same')
             i = infos["vector_head"]
             while i != infos["vector_next"]:
                 if not i in indexes_avail:
@@ -47,7 +47,7 @@ def print_graph():
                 s.edge(str(i), str(next[i]), color='blue')
                 i = prev[i]
     with dot.subgraph() as s: # free
-        s.attr(rank='same')
+        #s.attr(rank='same')
         i = infos["alloc_addr"]
         while i != infos["BOSP"]:
             if not i in indexes_avail:
@@ -58,10 +58,11 @@ def print_graph():
             i = prev[i]
         s.node(str(i), str(i)+": "+str(data[i]), style='filled', fillcolor='#FFFFFF')
         s.edge(str(i), str(prev[i]), color='red')
+        #if i in indexes_avail:
         del indexes_avail[indexes_avail.index(i)] # remove from index_avail
 
     with dot.subgraph() as s: # lost_idx
-        s.attr(rank='same')
+        #s.attr(rank='same')
         for lost_i in indexes_avail:
             s.node(str(lost_i), str(lost_i)+": "+str(data[lost_i]), style='filled', fillcolor='#E39774')
             s.edge(str(lost_i), str(prev[lost_i]), color='red')
@@ -166,4 +167,23 @@ close_valid()
 print(get_infos())
 nop()
 print(get_infos())
+
+from test_vras import *
+init()
+push(1)
+push(2)
+push(3)
+push(4)
+branch()
+pop()
+push(5)
+vras.next_input(close_valid=1, push=1, data_in=6)
+vras.process()
+
+get_infos()
+print_graph()
+pop()
+get_infos()
+
+
 """
