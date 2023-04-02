@@ -121,7 +121,7 @@ module ras (
             .dob(),
             .raddrb(),                                              .reb(1'b0),
             .waddrb(attach_vector ? branch_initial_tosp : branch_tosp_2),
-                    .wib(attach_vector ? empty_next : branch_initial_empty_start_2),
+               .wib(attach_vector ? empty_next          : branch_initial_empty_start_2),
                                                                     .web(attach_vector || attach_vector_2),
             .rib(),                                                 .rstb(1'b0)
         );
@@ -130,8 +130,7 @@ module ras (
         used_data(.clk(clk),
             .doa(prev_tosp),
             .raddra(tosp_n),                                        .rea(~consume_empty),
-            .waddra(tosp_n),
-                .wia((pop && on_branch) ? prev_tosp : tosp),     .wea(consume_empty),
+            .waddra(tosp_n), .wia(consume_tosp ? prev_tosp : tosp), .wea(consume_empty),
             .ria(),                                                 .rsta(1'b0),
             .dob(),
             .raddrb(),                                              .reb(1'b0),
