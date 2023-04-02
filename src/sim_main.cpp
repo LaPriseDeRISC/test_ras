@@ -32,6 +32,7 @@ void next_input(bool pop, bool push, bool branch, bool close_valid, bool close_i
     top->close_valid = close_valid;
     top->close_invalid = close_invalid;
     top->din = din;
+    top->eval();
 }
 
 uint32_t process(){
@@ -42,17 +43,17 @@ uint32_t process(){
     return top->dout;
 }
 
-TO_ARRAY_CONTAINER(top->ras->next_links->ram.m_storage) get_next_links() {
+TO_ARRAY_CONTAINER(top->ras->used_data->ram.m_storage) get_next_links() {
     auto a = reinterpret_cast<TO_ARRAY_CONTAINER(
-            top->ras->next_links->ram.m_storage) &>(top->ras->next_links->ram.m_storage);
-    static_assert(sizeof(a) == sizeof(top->ras->next_links->ram.m_storage), "TO_ARRAY_CONTAINER MACRO FAILED");
+            top->ras->used_data->ram.m_storage) &>(top->ras->used_data->ram.m_storage);
+    static_assert(sizeof(a) == sizeof(top->ras->used_data->ram.m_storage), "TO_ARRAY_CONTAINER MACRO FAILED");
     return a;
 }
 
-TO_ARRAY_CONTAINER(top->ras->memory->free_data->ram.m_storage) get_free_slots() {
+TO_ARRAY_CONTAINER(top->ras->free_data->ram.m_storage) get_free_slots() {
     auto a = reinterpret_cast<TO_ARRAY_CONTAINER(
-            top->ras->memory->free_data->ram.m_storage) &>(top->ras->memory->free_data->ram.m_storage);
-    static_assert(sizeof(a) == sizeof(top->ras->memory->free_data->ram.m_storage), "TO_ARRAY_CONTAINER MACRO FAILED");
+            top->ras->free_data->ram.m_storage) &>(top->ras->free_data->ram.m_storage);
+    static_assert(sizeof(a) == sizeof(top->ras->free_data->ram.m_storage), "TO_ARRAY_CONTAINER MACRO FAILED");
     return a;
 }
 
@@ -62,16 +63,15 @@ TO_ARRAY_CONTAINER(top->ras->data->ram.m_storage) get_data() {
     return a;
 }
 
-std::array<uint32_t,15> raw_infos() {
-    return {top->ras->alloc_addr, top->ras->last_alloc_addr,
-            top->ras->in_branch, top->ras->branch_list_empty,
-            top->ras->current_branch_has_added, top->ras->current_branch_has_suppressed,
-            top->ras->BOSP,
-            top->ras->current_branch_vector_size_is_one, top->ras->current_branch_vector_size_is_two,
-            top->ras->current_branch_vector_previous, top->ras->current_branch_vector_head,
-            top->ras->current_branch_vector_second, top->ras->current_branch_vector_third,
-            top->ras->current_branch_vector_tail, top->ras->current_branch_vector_next
-            };
+std::array<uint32_t,13> raw_infos() {
+    return {top->ras->prev_tosp, top->ras->tosp,
+            top->ras->empty_start, top->ras->empty_next,
+            top->ras->in_branch, top->ras->on_branch, top->ras->branch_has_suppressed,
+            top->ras->branch_tosp,
+            top->ras->branch_empty_start, top->ras->branch_empty_next,
+            top->ras->branch_initial_tosp, top->ras->branch_initial_empty_start,
+            top->ras->bosp
+    };
 }
 
 PYBIND11_MODULE(vras, m
