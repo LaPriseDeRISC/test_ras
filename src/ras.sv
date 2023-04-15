@@ -1,5 +1,11 @@
 `timescale 1ns / 1ps
 
+
+// branches fifo overflow is critical
+// branches "valid_close" need two cycles in some conditions
+// when two branches following have suppressed elements
+// in the case of an in-order CPU this should not matter
+
 module ras (
     clk, reset, pop, push, branch,
     close_valid, close_invalid,
@@ -33,6 +39,7 @@ module ras (
     assign clear_tosp = do_pop && !on_branch && !push;
     assign consume_tosp = do_pop && !(push && !on_branch);
     assign consume_empty = push && !(do_pop && !on_branch);
+    // we could store that in the fifo and add a nice counter to save some space
     assign branch_has_suppressed = branch_tosp != branch_initial_tosp;
     assign attach_vector = close_valid && in_branch && branch_has_suppressed;
 
@@ -54,6 +61,7 @@ module ras (
     initial empty_start = ADDR'(INITIAL_ADDR + DIRECTION);
     initial bosp = ADDR'(INITIAL_ADDR);
 
+    // in_branch flag process
     always_ff @(posedge clk) begin
         if(close_invalid)
             in_branch <= 1'b0;
@@ -63,6 +71,7 @@ module ras (
             in_branch <= 1'b0;
     end
 
+    // current branch pointers process
     always_ff @(posedge clk) begin
         if(branch) begin
             current_branch_tosp <= tosp_n;
@@ -76,8 +85,16 @@ module ras (
         end
     end
 
+    // bosp overflow process
     always_ff @(posedge clk) if(consume_empty && empty_start == bosp) bosp <= empty_next;
+    // bosp represents the entry point in the linked list
+    // [tosp :>> bosp[ is where the data is stored
+    // [empty_start <<: bosp] are the free slots
+    // ( :>> (used_data) / <<: (free_data) means the direction of the linkage)
+    // an element is lost when he is overflown in the "free slots"
+    // we use empty_next in case of an "attach_vector" condition
 
+    // next tosp calculation
     always_comb begin
         if(consume_empty)
             tosp_n = empty_start;
@@ -88,8 +105,10 @@ module ras (
         else tosp_n = tosp;
     end
 
+    // tosp update process
     always_ff @(posedge clk) tosp <= tosp_n;
 
+    // next empty_start calculation
     always_comb begin
         if(consume_empty)
             empty_start_n = attach_vector ? branch_empty_start : empty_next;
@@ -100,8 +119,10 @@ module ras (
         else empty_start_n = empty_start;
     end
 
+    // empty_start update process
     always_ff @(posedge clk) empty_start <= empty_start_n;
 
+    // two-clock vector move process
     always_ff @(posedge clk) begin
         attach_vector_2 <= attach_vector;
         attach_vector_3 <= attach_vector_2;
@@ -119,13 +140,20 @@ module ras (
                 empty_next_temp <= branch_empty_start;
         end
     end
+
     // on second clock of closing vector, if empty_start == branch_tosp_2
     // it means that the link with its next free (branch_initial_empty_start_2) is not yet written
     assign empty_next_is_branch_initial_empty = attach_vector_3 && (empty_start == branch_tosp_2);
+
+    // empty_next source selection
     assign empty_next = attach_vector_2 ? empty_next_temp :
         (empty_next_is_branch_initial_empty ? branch_initial_empty_start_2 : empty_next_out);
 
     /* verilator lint_off PINCONNECTEMPTY */
+    // free data ([empty_start <<: bosp]) links generator
+    // these links must always valid (excepted in the two-clock process)
+    // memory initialization is needed: mem[i] = (i * INCR) + OFS
+    // we need 3 memory accesses to move a vector, hence the two-clock process
     bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(DIRECTION), .INCR(1))
         free_data(.clk(clk),
             .doa(empty_next_out),
@@ -139,8 +167,11 @@ module ras (
                                                                     .web(attach_vector || attach_vector_2),
             .rib(),                                                 .rstb(1'b0)
         );
-    
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(-DIRECTION), .INCR(1))
+
+    // used data links generator
+    // links are valid only inside [tosp :>> bosp[
+    // no initialization needed
+    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR))
         used_data(.clk(clk),
             .doa(prev_tosp),
             .raddra(tosp_n),                                        .rea(~consume_empty),
