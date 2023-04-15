@@ -9,6 +9,8 @@ module ras (
     parameter DEPTH = 16;
     parameter DIRECTION = 1;
     parameter INITIAL_ADDR = 0;
+    parameter MAX_BRANCHES = 16;
+    parameter ADDR_BRANCHES = 4;
     /* verilator lint_off UNUSEDSIGNAL */
     input logic clk, reset, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
@@ -17,13 +19,14 @@ module ras (
     /* verilator lint_on UNUSEDSIGNAL */
 
     assign busy = 1'b0;
-    assign empty = (prev_tosp == bosp);
+    assign empty = (tosp == bosp);
 
+    logic branch_list_empty;
     logic in_branch/*verilator public*/, on_branch/*verilator public*/;
     logic consume_tosp, consume_empty, clear_tosp;
     logic attach_vector;
 
-    assign on_branch = in_branch && (tosp == branch_tosp) && !(close_valid || close_invalid);
+    assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_valid || close_invalid);
     assign clear_tosp = pop && !on_branch && !push;
     assign consume_tosp = pop && !(push && !on_branch);
     assign consume_empty = push && !(pop && !on_branch);
@@ -37,6 +40,8 @@ module ras (
 
     logic [ADDR-1 : 0] branch_tosp/*verilator public*/, branch_initial_empty_start/*verilator public*/;
     logic [ADDR-1 : 0] branch_initial_tosp/*verilator public*/, branch_empty_start/*verilator public*/, branch_empty_next/*verilator public*/;
+    logic [ADDR-1 : 0] current_branch_initial_tosp, current_branch_initial_empty_start,
+                                   current_branch_tosp, current_branch_empty_start, current_branch_empty_next;
     logic branch_has_suppressed/*verilator public*/;
 
     logic [ADDR-1 : 0] branch_tosp_2, branch_initial_empty_start_2;
@@ -44,23 +49,24 @@ module ras (
 
     initial tosp = ADDR'(INITIAL_ADDR);
     initial empty_start = ADDR'(INITIAL_ADDR + DIRECTION);
-    initial bosp = ADDR'(INITIAL_ADDR - DIRECTION);
+    initial bosp = ADDR'(INITIAL_ADDR);
 
     always_ff @(posedge clk) begin
-        if(branch) begin
-            in_branch <= 1'b1;
-            branch_tosp <= tosp;
-            branch_initial_empty_start <= empty_start;
-            branch_initial_tosp <= tosp;
-        end else if(close_valid || close_invalid)
+        if(close_invalid)
             in_branch <= 1'b0;
-    end
-
-    always_ff @(posedge clk) begin
-        if(on_branch && pop) begin
-            branch_tosp <= prev_tosp;
-            branch_empty_start <= tosp;
-            branch_empty_next <= empty_start;
+        else if(branch)
+            in_branch <= 1'b1;
+        else if(close_valid)
+            in_branch <= !branch_list_empty;
+        if(branch) begin
+            current_branch_tosp <= tosp_n;
+            current_branch_empty_start <= empty_start_n;
+            current_branch_initial_tosp <= tosp_n;
+            current_branch_initial_empty_start <= empty_start_n;
+        end else if(on_branch && pop) begin
+            current_branch_tosp <= prev_tosp;
+            current_branch_empty_start <= tosp;
+            current_branch_empty_next <= current_branch_empty_start;
         end
     end
 
@@ -143,5 +149,13 @@ module ras (
             .doa(dout), .wia(), .ria(), .raddra(tosp), .waddra(), .rea(pop), .wea(1'b0), .rsta(1'b0),
             .wib(din), .dob(), .rib(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push), .rstb(1'b0));
 
+    fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR), .ADDR(ADDR_BRANCHES))
+        branches(.clk(clk), .rst(close_invalid),
+            .push(branch && in_branch),
+            .pop(close_valid && !branch_list_empty),
+            .empty(branch_list_empty),
+            .din({current_branch_initial_tosp, current_branch_initial_empty_start,
+            current_branch_tosp, current_branch_empty_start, current_branch_empty_next}),
+            .dout({branch_initial_tosp, branch_initial_empty_start, branch_tosp, branch_empty_start, branch_empty_next}));
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule : ras
