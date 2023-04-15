@@ -42,3 +42,4 @@ test_ras.runs/*
 test_ras.cache/*
 test_ras.hw/*
 test_ras.srcs/*
+/build/
