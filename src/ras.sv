@@ -3,7 +3,7 @@
 module ras (
     clk, reset, pop, push, branch,
     close_valid, close_invalid,
-    din, dout, busy, empty);
+    din, dout, empty);
     parameter WIDTH = 32;
     parameter ADDR = 4;
     parameter DEPTH = 16;
@@ -15,10 +15,9 @@ module ras (
     input logic clk, reset, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
-    output logic busy, empty;
+    output logic empty;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    assign busy = 1'b0;
     assign empty = (tosp == bosp);
 
     logic branch_list_empty;
@@ -60,8 +59,11 @@ module ras (
             in_branch <= 1'b0;
         else if(branch)
             in_branch <= 1'b1;
-        else if(close_valid)
-            in_branch <= !branch_list_empty;
+        else if(closing_current_branch)
+            in_branch <= 1'b0;
+    end
+
+    always_ff @(posedge clk) begin
         if(branch) begin
             current_branch_tosp <= tosp_n;
             current_branch_empty_start <= empty_start_n;
