@@ -25,11 +25,15 @@ module ras (
     logic in_branch/*verilator public*/, on_branch/*verilator public*/;
     logic consume_tosp, consume_empty, clear_tosp;
     logic attach_vector;
+    logic do_pop;
+    logic closing_current_branch;
 
-    assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_valid || close_invalid);
-    assign clear_tosp = pop && !on_branch && !push;
-    assign consume_tosp = pop && !(push && !on_branch);
-    assign consume_empty = push && !(pop && !on_branch);
+    assign closing_current_branch = (close_valid && branch_list_empty);
+    assign do_pop = pop && !empty;
+    assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_invalid || closing_current_branch);
+    assign clear_tosp = do_pop && !on_branch && !push;
+    assign consume_tosp = do_pop && !(push && !on_branch);
+    assign consume_empty = push && !(do_pop && !on_branch);
     assign branch_has_suppressed = branch_tosp != branch_initial_tosp;
     assign attach_vector = close_valid && in_branch && branch_has_suppressed;
 
@@ -63,12 +67,14 @@ module ras (
             current_branch_empty_start <= empty_start_n;
             current_branch_initial_tosp <= tosp_n;
             current_branch_initial_empty_start <= empty_start_n;
-        end else if(on_branch && pop) begin
+        end else if(on_branch && do_pop) begin
             current_branch_tosp <= prev_tosp;
             current_branch_empty_start <= tosp;
             current_branch_empty_next <= current_branch_empty_start;
         end
     end
+
+    always_ff @(posedge clk) if(consume_empty && empty_start == bosp) bosp <= empty_next;
 
     always_comb begin
         if(consume_empty)
@@ -146,12 +152,12 @@ module ras (
 
     bram #(.DEPTH(DEPTH), .WIDTH(32), .ADDR(ADDR))
         data(.clk(clk),
-            .doa(dout), .wia(), .ria(), .raddra(tosp), .waddra(), .rea(pop), .wea(1'b0), .rsta(1'b0),
+            .doa(dout), .wia(), .ria(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0), .rsta(1'b0),
             .wib(din), .dob(), .rib(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push), .rstb(1'b0));
 
     fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR), .ADDR(ADDR_BRANCHES))
         branches(.clk(clk), .rst(close_invalid),
-            .push(branch && in_branch),
+            .push(branch && in_branch && !closing_current_branch),
             .pop(close_valid && !branch_list_empty),
             .empty(branch_list_empty),
             .din({current_branch_initial_tosp, current_branch_initial_empty_start,
