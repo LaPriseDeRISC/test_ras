@@ -85,7 +85,9 @@ module ras (
     end
 
     // bosp overflow process
-    always_ff @(posedge clk) if(consume_empty && empty_start == bosp) bosp <= empty_next;
+    always_ff @(posedge clk)
+        if(reset) bosp <= ADDR'(INITIAL_ADDR);
+        else if(consume_empty && empty_start == bosp) bosp <= empty_next;
     // bosp represents the entry point in the linked list
     // [tosp :>> bosp[ is where the data is stored
     // [empty_start <<: bosp] are the free slots
@@ -105,7 +107,9 @@ module ras (
     end
 
     // tosp update process
-    always_ff @(posedge clk) tosp <= tosp_n;
+    always_ff @(posedge clk)
+        if(reset) tosp <= ADDR'(INITIAL_ADDR);
+        else  tosp <= tosp_n;
 
     // next empty_start calculation
     always_comb begin
@@ -119,7 +123,9 @@ module ras (
     end
 
     // empty_start update process
-    always_ff @(posedge clk) empty_start <= empty_start_n;
+    always_ff @(posedge clk)
+        if(reset) empty_start <= ADDR'(INITIAL_ADDR + DIRECTION);
+        else empty_start <= empty_start_n;
 
     // two-clock vector move process
     always_ff @(posedge clk) begin
