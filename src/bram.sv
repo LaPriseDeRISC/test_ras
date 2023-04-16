@@ -23,17 +23,16 @@
 
 // File: rams_tdp_rf_rf.v
 
-module bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,ria,rib,doa,dob,rsta,rstb);
+module bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);
     parameter OFS = 0;
     parameter INCR = 0;
-    input clk,rea,reb,wea,web,rsta,rstb;
+    input clk,rea,reb,wea,web;
     input [ADDR-1:0] raddra, raddrb;
     input [ADDR-1:0] waddra, waddrb;
     input [WIDTH-1:0] wia, wib;
-    input [WIDTH-1:0] ria, rib;
     output logic [WIDTH-1:0] doa,dob;
     reg [WIDTH-1:0] ram [DEPTH-1:0]/*verilator public*/;
     generate
@@ -42,26 +41,33 @@ module bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,ria,rib,doa
         end
     endgenerate 
     
+    logic [ADDR-1:0] addra, addrb;
+    logic ena, enb;
+    assign addra = wea ? waddra : raddra;
+    assign addrb = web ? waddrb : raddrb;
+    assign ena = rea || wea;
+    assign enb = reb || web;
+
     always @(posedge clk)
     begin
-        if (rea)
-            doa <= ram[raddra];
-        else if (wea) begin
-            ram[waddra] <= wia;
-            doa <= wia;
-        end else if(rsta)
-            doa <= ria;
+        if (ena)
+        begin
+            if (wea) begin
+                ram[addra] <= wia;
+                doa <= wia;
+            end else doa <= ram[addra];
+        end
     end
 
     always @(posedge clk)
     begin
-        if (reb)
-            dob <= ram[raddrb];
-        else if (web) begin
-            ram[waddrb] <= wib;
-            dob <= wib;
-        end else if(rstb)
-            dob <= rib;
+        if (enb)
+        begin
+            if (web) begin
+                ram[addrb] <= wib;
+                dob <= wib;
+            end else dob <= ram[addrb];
+        end
     end
 endmodule 
 

@@ -158,13 +158,11 @@ module ras (
             .doa(empty_next_out),
             .raddra(empty_start_n),                                 .rea(~attach_vector),
             .waddra(empty_start), .wia(branch_empty_start),         .wea(attach_vector),
-            .ria(),                                                 .rsta(1'b0),
             .dob(),
             .raddrb(),                                              .reb(1'b0),
             .waddrb(attach_vector ? branch_initial_tosp : branch_tosp_2),
                .wib(attach_vector ? empty_next          : branch_initial_empty_start_2),
-                                                                    .web(attach_vector || attach_vector_2),
-            .rib(),                                                 .rstb(1'b0)
+                                                                    .web(attach_vector || attach_vector_2)
         );
 
     // used data links generator
@@ -175,17 +173,15 @@ module ras (
             .doa(prev_tosp),
             .raddra(tosp_n),                                        .rea(~consume_empty),
             .waddra(tosp_n), .wia(consume_tosp ? prev_tosp : tosp), .wea(consume_empty),
-            .ria(),                                                 .rsta(1'b0),
             .dob(),
             .raddrb(),                                              .reb(1'b0),
-            .waddrb(), .wib(),                                      .web(1'b0),
-            .rib(),                                                 .rstb(1'b0)
+            .waddrb(), .wib(),                                      .web(1'b0)
         );
 
     bram #(.DEPTH(DEPTH), .WIDTH(32))
         data(.clk(clk),
-            .doa(dout), .wia(), .ria(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0), .rsta(1'b0),
-            .wib(din), .dob(), .rib(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push), .rstb(1'b0));
+            .doa(dout), .wia(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0),
+            .wib(din), .dob(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push));
 
     fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR))
         branches(.clk(clk), .rst(close_invalid),
