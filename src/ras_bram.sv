@@ -23,7 +23,7 @@
 
 // File: rams_tdp_rf_rf.v
 
-module bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob);
+module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);

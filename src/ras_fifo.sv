@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module fifo (clk, rst, push, pop, empty, din, dout);
+module ras_fifo (clk, rst, push, pop, empty, din, dout);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);

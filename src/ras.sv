@@ -159,7 +159,7 @@ module ras (
     // these links must always valid (excepted in the two-clock process)
     // memory initialization is needed: mem[i] = (i * INCR) + OFS
     // we need 3 memory accesses to move a vector, hence the two-clock process
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .OFS(DIRECTION), .INCR(1))
+    ras_bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .OFS(DIRECTION), .INCR(1))
         free_data(.clk(clk),
             .doa(empty_next_out),
             .raddra(empty_start_n),                                 .rea(~attach_vector),
@@ -174,7 +174,7 @@ module ras (
     // used data links generator
     // links are valid only inside [tosp :>> bosp[
     // no initialization needed
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR))
+    ras_bram #(.DEPTH(DEPTH), .WIDTH(ADDR))
         used_data(.clk(clk),
             .doa(prev_tosp),
             .raddra(tosp_n),                                        .rea(~consume_empty),
@@ -184,12 +184,12 @@ module ras (
             .waddrb(), .wib(),                                      .web(1'b0)
         );
 
-    bram #(.DEPTH(DEPTH), .WIDTH(32))
+    ras_bram #(.DEPTH(DEPTH), .WIDTH(32))
         data(.clk(clk),
             .doa(dout), .wia(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0),
             .wib(din), .dob(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push));
 
-    fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR))
+    ras_fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR))
         branches(.clk(clk), .rst(close_invalid),
             .push(branch && in_branch && !closing_current_branch),
             .pop(close_valid && !branch_list_empty),
