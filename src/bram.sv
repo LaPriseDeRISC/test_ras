@@ -26,7 +26,7 @@
 module bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,ria,rib,doa,dob,rsta,rstb);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
-    parameter ADDR = 10;
+    localparam ADDR = $clog2(DEPTH);
     parameter OFS = 0;
     parameter INCR = 0;
     input clk,rea,reb,wea,web,rsta,rstb;

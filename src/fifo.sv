@@ -3,7 +3,7 @@
 module fifo (clk, rst, push, pop, empty, din, dout);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
-    parameter ADDR = 10;
+    localparam ADDR = $clog2(DEPTH);
     input clk, rst, push, pop;
     output logic empty;
     input [WIDTH-1:0] din;

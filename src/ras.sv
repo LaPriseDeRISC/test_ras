@@ -11,12 +11,11 @@ module ras (
     close_valid, close_invalid,
     din, dout, empty);
     parameter WIDTH = 32;
-    parameter ADDR = 4;
-    parameter DEPTH = 16;
+    parameter DEPTH = 1024;
+    localparam ADDR = $clog2(DEPTH);
     parameter DIRECTION = 1;
     parameter INITIAL_ADDR = 0;
-    parameter MAX_BRANCHES = 16;
-    parameter ADDR_BRANCHES = 4;
+    parameter MAX_BRANCHES = 128;
     /* verilator lint_off UNUSEDSIGNAL */
     input logic clk, reset, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
@@ -154,7 +153,7 @@ module ras (
     // these links must always valid (excepted in the two-clock process)
     // memory initialization is needed: mem[i] = (i * INCR) + OFS
     // we need 3 memory accesses to move a vector, hence the two-clock process
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR), .OFS(DIRECTION), .INCR(1))
+    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .OFS(DIRECTION), .INCR(1))
         free_data(.clk(clk),
             .doa(empty_next_out),
             .raddra(empty_start_n),                                 .rea(~attach_vector),
@@ -171,7 +170,7 @@ module ras (
     // used data links generator
     // links are valid only inside [tosp :>> bosp[
     // no initialization needed
-    bram #(.DEPTH(DEPTH), .WIDTH(ADDR), .ADDR(ADDR))
+    bram #(.DEPTH(DEPTH), .WIDTH(ADDR))
         used_data(.clk(clk),
             .doa(prev_tosp),
             .raddra(tosp_n),                                        .rea(~consume_empty),
@@ -183,12 +182,12 @@ module ras (
             .rib(),                                                 .rstb(1'b0)
         );
 
-    bram #(.DEPTH(DEPTH), .WIDTH(32), .ADDR(ADDR))
+    bram #(.DEPTH(DEPTH), .WIDTH(32))
         data(.clk(clk),
             .doa(dout), .wia(), .ria(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0), .rsta(1'b0),
             .wib(din), .dob(), .rib(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push), .rstb(1'b0));
 
-    fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR), .ADDR(ADDR_BRANCHES))
+    fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR))
         branches(.clk(clk), .rst(close_invalid),
             .push(branch && in_branch && !closing_current_branch),
             .pop(close_valid && !branch_list_empty),

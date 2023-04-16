@@ -41,7 +41,7 @@ def generate_instrs(nbr):
 
 def compare_ras(instrs_q):
     idx = 0
-    sras = soft_vras(16)
+    sras = soft_vras(1024)
     vras.init()
     vras.process()
     li = {}
