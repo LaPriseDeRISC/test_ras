@@ -7,7 +7,7 @@
 // in the case of an in-order CPU this should not matter
 
 module ras (
-    clk, reset, pop, push, branch,
+    clk, rst_ni, pop, push, branch,
     close_valid, close_invalid,
     din, dout, empty);
     parameter WIDTH = 32;
@@ -17,7 +17,7 @@ module ras (
     parameter INITIAL_ADDR = 0;
     parameter MAX_BRANCHES = 128;
     /* verilator lint_off UNUSEDSIGNAL */
-    input logic clk, reset, pop, push, branch, close_valid, close_invalid;
+    input logic clk, rst_ni, pop, push, branch, close_valid, close_invalid;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
     output logic empty;
@@ -31,16 +31,17 @@ module ras (
     logic attach_vector;
     logic do_pop;
     logic closing_current_branch;
+    logic reset, reset_1;
 
     assign closing_current_branch = (close_valid && branch_list_empty);
     assign do_pop = pop && !empty;
     assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_invalid || closing_current_branch);
-    assign clear_tosp = do_pop && !on_branch && !push;
-    assign consume_tosp = do_pop && !(push && !on_branch);
-    assign consume_empty = push && !(do_pop && !on_branch);
+    assign clear_tosp = do_pop && !on_branch && !push && !(reset || reset_1);
+    assign consume_tosp = do_pop && !(push && !on_branch) && !(reset || reset_1);
+    assign consume_empty = push && !(do_pop && !on_branch) && !(reset || reset_1);
     // we could store that in the fifo and add a nice counter to save some space
     assign branch_has_suppressed = branch_tosp != branch_initial_tosp;
-    assign attach_vector = close_valid && in_branch && branch_has_suppressed;
+    assign attach_vector = !(reset || reset_1) && close_valid && in_branch && branch_has_suppressed;
 
     logic [ADDR-1 : 0] tosp/*verilator public*/, tosp_n, bosp/*verilator public*/;
     logic [ADDR-1 : 0] empty_start/*verilator public*/, empty_start_n;
@@ -56,13 +57,23 @@ module ras (
     logic [ADDR-1 : 0] branch_tosp_2, branch_initial_empty_start_2;
     logic attach_vector_2, attach_vector_3, empty_next_is_branch_initial_empty;
 
-    initial tosp = ADDR'(INITIAL_ADDR);
-    initial empty_start = ADDR'(INITIAL_ADDR + DIRECTION);
-    initial bosp = ADDR'(INITIAL_ADDR);
+    initial begin
+        empty_start = ADDR'(INITIAL_ADDR);
+        tosp = ADDR'(INITIAL_ADDR);
+        bosp = ADDR'(INITIAL_ADDR);
+        in_branch = 1'b0;
+        attach_vector_2 = 1'b0;
+        attach_vector_3 = 1'b0;
+        reset = 1'b1;
+    end
+
+    always_ff @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
+                                               else reset <= 1'b0;
+    always_ff @(posedge clk) reset_1 <= reset;
 
     // in_branch flag process
     always_ff @(posedge clk) begin
-        if(close_invalid)
+        if(close_invalid || reset || reset_1)
             in_branch <= 1'b0;
         else if(branch)
             in_branch <= 1'b1;
@@ -109,11 +120,13 @@ module ras (
     // tosp update process
     always_ff @(posedge clk)
         if(reset) tosp <= ADDR'(INITIAL_ADDR);
-        else  tosp <= tosp_n;
+        else tosp <= tosp_n;
 
     // next empty_start calculation
     always_comb begin
-        if(consume_empty)
+        if(reset)
+            empty_start_n = ADDR'(INITIAL_ADDR);
+        else if(consume_empty || reset_1)
             empty_start_n = attach_vector ? branch_empty_start : empty_next;
         else if(clear_tosp)
             empty_start_n = tosp;
@@ -123,9 +136,7 @@ module ras (
     end
 
     // empty_start update process
-    always_ff @(posedge clk)
-        if(reset) empty_start <= ADDR'(INITIAL_ADDR + DIRECTION);
-        else empty_start <= empty_start_n;
+    always_ff @(posedge clk) empty_start <= empty_start_n;
 
     // two-clock vector move process
     always_ff @(posedge clk) begin
@@ -186,11 +197,11 @@ module ras (
 
     ras_bram #(.DEPTH(DEPTH), .WIDTH(32))
         data(.clk(clk),
-            .doa(dout), .wia(), .raddra(tosp), .waddra(), .rea(do_pop), .wea(1'b0),
+            .doa(dout), .wia(), .raddra(tosp), .waddra(), .rea(pop), .wea(1'b0),
             .wib(din), .dob(), .raddrb(), .waddrb(tosp_n), .reb(1'b0), .web(push));
 
     ras_fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(5 * ADDR))
-        branches(.clk(clk), .rst(close_invalid),
+        branches(.clk(clk), .rst(reset || reset_1 || close_invalid),
             .push(branch && in_branch && !closing_current_branch),
             .pop(close_valid && !branch_list_empty),
             .empty(branch_list_empty),

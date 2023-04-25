@@ -15,6 +15,13 @@ void init_argv(int argc, char **argv) {
     top = new Vras{contextp};
 }
 
+void reset() {
+    top->rst_ni = 0;
+    top->eval();
+    top->rst_ni = 1;
+    top->eval();
+}
+
 void init() {
     contextp = new VerilatedContext;
     top = new Vras{contextp};
@@ -90,6 +97,7 @@ py::arg("close_valid") = false,
 py::arg("close_invalid") = false,
 py::arg("data_in") = 0);
 m.def("close", &close_module, "Close the module");
+m.def("reset", &reset, "resets the module");
 m.def("next_links", &get_next_links, "next ptrs");
 m.def("free_slots", &get_free_slots, "prev ptrs");
 m.def("empty", [](){return top->empty;});
