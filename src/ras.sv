@@ -23,8 +23,6 @@ module ras (
     output logic empty;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    assign empty = (tosp == bosp);
-
     logic branch_list_empty;
     logic in_branch/*verilator public*/, on_branch/*verilator public*/;
     logic consume_tosp, consume_empty, clear_tosp;
@@ -32,16 +30,6 @@ module ras (
     logic do_pop;
     logic closing_current_branch;
     logic reset, reset_1;
-
-    assign closing_current_branch = (close_valid && branch_list_empty);
-    assign do_pop = pop && !empty;
-    assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_invalid || closing_current_branch);
-    assign clear_tosp = do_pop && !on_branch && !push && !(reset || reset_1);
-    assign consume_tosp = do_pop && !(push && !on_branch) && !(reset || reset_1);
-    assign consume_empty = push && !(do_pop && !on_branch) && !(reset || reset_1);
-    // we could store that in the fifo and add a nice counter to save some space
-    assign branch_has_suppressed = branch_tosp != branch_initial_tosp;
-    assign attach_vector = !(reset || reset_1) && close_valid && in_branch && branch_has_suppressed;
 
     logic [ADDR-1 : 0] tosp/*verilator public*/, tosp_n, bosp/*verilator public*/;
     logic [ADDR-1 : 0] empty_start/*verilator public*/, empty_start_n;
@@ -56,6 +44,18 @@ module ras (
 
     logic [ADDR-1 : 0] branch_tosp_2, branch_initial_empty_start_2;
     logic attach_vector_2, attach_vector_3, empty_next_is_branch_initial_empty;
+
+    assign empty = (tosp == bosp);
+
+    assign closing_current_branch = (close_valid && branch_list_empty);
+    assign do_pop = pop && !empty;
+    assign on_branch = in_branch && (tosp == current_branch_tosp) && !(close_invalid || closing_current_branch);
+    assign clear_tosp = do_pop && !on_branch && !push && !(reset || reset_1);
+    assign consume_tosp = do_pop && !(push && !on_branch) && !(reset || reset_1);
+    assign consume_empty = push && !(do_pop && !on_branch) && !(reset || reset_1);
+    // we could store that in the fifo and add a nice counter to save some space
+    assign branch_has_suppressed = branch_tosp != branch_initial_tosp;
+    assign attach_vector = !(reset || reset_1) && close_valid && in_branch && branch_has_suppressed;
 
     initial begin
         empty_start = ADDR'(INITIAL_ADDR);
