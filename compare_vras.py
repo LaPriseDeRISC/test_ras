@@ -3,7 +3,7 @@ import vras
 import random
 
 
-def generate_instr(opened_branches):
+def generate_instr(opened_branches, max_elems):
     a = {}
     if opened_branches:
         c = random.randint(0, 7)
@@ -13,28 +13,26 @@ def generate_instr(opened_branches):
         if c == 1:
             a = {"close_invalid": 1}
             opened_branches = 0
-            return opened_branches, a
-    i = random.randint(0, 16)
-    if i == 0:
+            return max_elems, opened_branches, a
+    if not random.randint(0, 5):  # 17%
         a = dict(a, **{"branch": 1})
         opened_branches += 1
-        return opened_branches, a
-    elif i % 4 == 0:
-        a = dict(a, **{"push": 1, "pop": 1, "data_in": random.randint(0, 1 << 31)})
-    elif i % 4 == 1:
+    if not random.randint(0, 2) and max_elems:  # 33%
         a = dict(a, **{"pop": 1})
-    elif i % 4 == 2:
+        if not opened_branches:
+            max_elems -= 1
+    if not random.randint(0, 2):  # 33%
         a = dict(a, **{"push": 1, "data_in": random.randint(0, 1 << 31)})
-    else:
-        a = dict(a, **{})
-    return opened_branches, a
+        max_elems += 1
+    return max_elems, opened_branches, a
 
 
 def generate_instrs(nbr):
     instrs = []
     opened_branches = 0
+    max_elems = 0
     for i in range(nbr):
-        opened_branches, inst = generate_instr(opened_branches)
+        max_elems, opened_branches, inst = generate_instr(opened_branches, max_elems)
         instrs.append(inst)
     return instrs
 
