@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module ras_fifo (clk, rst, push, pop, empty, din, dout);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
