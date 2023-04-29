@@ -2,120 +2,101 @@
 module ras (
     clk, rst_ni,
     pop, push,
-    commit_pop, commit_push,
-    isolate_pop, isolate_push,
+    commit,
     flush,
     din, dout, empty);
+    parameter STAGES = 2;
     parameter WIDTH = 32;
     parameter DEPTH = 1024;
     localparam ADDR = $clog2(DEPTH);
     parameter MAX_BRANCHES = 16;
-    localparam MAX_BRANCHES_ADDR = $clog2(MAX_BRANCHES);
     /* verilator lint_off UNUSEDSIGNAL */
-    input logic  clk, rst_ni, flush;
+    input logic  clk, rst_ni;
     input logic  pop, push;
-    input logic  commit_pop, commit_push;
-    input logic  isolate_pop, isolate_push;
+    input logic [STAGES-1:0] commit;
+    input logic [STAGES-1:0] flush;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
     output logic empty;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    logic                           reset, dout_temp_select, dout_final_select, get_from_fifo;
-    logic                           buf_out_empty, branch_prev_invalid;
-    logic [ADDR-1:0]                commit_tosp, tosp, tosp_n, bosp;
-    logic [WIDTH-1:0]               dout_final, dout_final_out, dout_final_in;
-    logic [WIDTH-1:0]               dout_temp,  dout_temp_out,  dout_temp_in;
-    logic [WIDTH-1:0]               branch_prev_din, branch_din;
-    logic [ADDR-1:0]                branch_prev_tosp, branch_tosp;
-    logic [MAX_BRANCHES_ADDR-1:0]   pending_push_visible, pending_push_masked;
-    assign empty = (tosp == bosp);
+    logic                           reset;
+    logic [ADDR-1:0]                tosp, tosp_n, bosp;
 
-    always_comb begin
-        if(reset)       tosp_n = ADDR'(0);
-        else if (flush) tosp_n = commit_tosp;
-        else if ((isolate_pop || isolate_push) && !branch_prev_invalid) // clear this fifo
-                        tosp_n = branch_prev_tosp;
-        else            tosp_n = tosp - ADDR'(pop) + ADDR'(push);
-    end
+    wire [STAGES:0]            stage_push;
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire [STAGES:0]            stage_pop;
+    /* verilator lint_on UNUSEDSIGNAL */
+    wire [STAGES:0][WIDTH-1:0] stage_data;
+    wire [STAGES:0][ADDR-1:0]  stage_addr;
+    wire [STAGES:0][ADDR-1:0]  stage_base_addr;
+    wire [STAGES:0][WIDTH-1:0] stage_dout;
+    wire [STAGES:0]            stage_dout_valid;
+    wire [STAGES:0]            trigger = {commit, pop || push};
 
     always_ff @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
                                                else reset <= 1'b0;
+
+    always_comb begin
+            tosp_n = tosp - ADDR'(pop) + ADDR'(push);
+            for (int i = 0; i < STAGES ; i++)
+                if(flush[i]) tosp_n = stage_base_addr[i+1];
+            if(reset)        tosp_n = ADDR'(0);
+    end
+
+    always_ff @(posedge clk) tosp <= tosp_n;
+
     always_ff @(posedge clk) begin
         if(reset)                           bosp <= ADDR'(0);
         else if(pop && empty)               bosp <= bosp - ADDR'(1); // underflow
         else if(push && (tosp_n == bosp))   bosp <= bosp + ADDR'(1); // overflow
     end
-    always_ff @(posedge clk) tosp <= tosp_n;
 
-    always_ff @(posedge clk) begin
-        if(reset)                           commit_tosp <= ADDR'(0);
-        else if(commit_push || commit_pop)  commit_tosp <= branch_tosp;
+    assign empty = (tosp == bosp);
+
+    assign stage_push[0] = push;
+    assign stage_pop[0] = pop;
+    assign stage_addr[0] = tosp_n;
+    assign stage_data[0] = din;
+
+    for (genvar i = 0; i < STAGES; i++) begin
+        ras_stage #(.DEPTH(MAX_BRANCHES), .WIDTH(WIDTH), .ADDR_WIDTH(ADDR))
+            stage(.clk(clk), .reset(flush[i]),
+                .trigger(trigger[i]), .commit(commit[i]),
+                .pop_i(stage_pop[i]), .push_i(stage_push[i]),
+                .addr_i(stage_addr[i]), .data_i(stage_data[i]),
+                .pop_o(stage_pop[i+1]), .push_o(stage_push[i+1]),
+                .addr_o(stage_addr[i+1]), .data_o(stage_data[i+1]),
+                .addr(tosp_n), .dout(stage_dout[i]), .valid(stage_dout_valid[i]),
+                .base_addr(stage_base_addr[i]));
     end
 
+    logic [ADDR-1:0] commit_tosp;
     always_ff @(posedge clk) begin
-        if(flush || reset || isolate_pop || isolate_push)
-                                    pending_push_masked <=  '0;
-        else pending_push_masked <= pending_push_masked
-                                    + MAX_BRANCHES_ADDR'(pop && (pending_push_visible != 0))
-                                    - MAX_BRANCHES_ADDR'((pending_push_masked != 0) && commit_push);
+        if(reset || (|flush)) commit_tosp <= tosp_n;
+        else if(trigger[STAGES])
+            commit_tosp <= stage_addr[STAGES];
     end
 
-    always_ff @(posedge clk) begin
-        if(flush || reset || isolate_pop)
-                                     pending_push_visible <=  '0;
-        else if(isolate_push)        pending_push_visible <=  MAX_BRANCHES_ADDR'(1);
-        else pending_push_visible <= pending_push_visible
-                                    + MAX_BRANCHES_ADDR'(push)
-                                    - MAX_BRANCHES_ADDR'(pop && (pending_push_visible != 0))
-                                    - MAX_BRANCHES_ADDR'((pending_push_masked == 0) && commit_push);
-    end
+    assign stage_base_addr[STAGES] = commit_tosp;
+    assign stage_dout_valid[STAGES] = 1'b1;
 
     /* verilator lint_off PINCONNECTEMPTY */
-    ras_fifo #(.DEPTH(MAX_BRANCHES), .WIDTH(WIDTH + ADDR))
-        pending_actions(.clk(clk),
-            .rst(flush || reset || isolate_push || isolate_pop),
-            .push((push || pop) && (!buf_out_empty)), // out buffer is full, start storing there
-            .pop(get_from_fifo), // out buffer frees
-            .empty(branch_prev_invalid),
-            .din({din, tosp_n}),
-            .dout({branch_prev_din, branch_prev_tosp}));
-
-    assign get_from_fifo = (buf_out_empty || commit_push || commit_pop) && // we have room
-                           (!branch_prev_invalid);                            // and fifo is valid
-
-    always_ff @(posedge clk) begin
-        if(flush || reset) begin
-            buf_out_empty <= 1'b1;
-        end else if (get_from_fifo) begin // get from fifo
-            buf_out_empty <= 1'b0;
-            branch_din <= branch_prev_din;
-            branch_tosp <= branch_prev_tosp;
-        end else if(buf_out_empty) begin // refill from din
-            buf_out_empty <= !(push || pop);
-            branch_din <= din;
-            branch_tosp <= tosp_n;
-        end else if(commit_push || commit_pop) begin
-            buf_out_empty <= 1'b1; // this means we are going empty
-        end
-    end
-
-    ras_bram #(.DEPTH(MAX_BRANCHES), .WIDTH(WIDTH))
-        pending_data(.clk(clk),
-            .doa(dout_temp_out), .wia(), .raddra(MAX_BRANCHES_ADDR'(tosp_n)), .waddra(), .rea(!push), .wea(1'b0),
-            .wib(din), .dob(dout_temp_in), .raddrb(), .waddrb(MAX_BRANCHES_ADDR'(tosp_n)), .reb(1'b0), .web(push));
-    always_ff @(posedge clk) dout_temp_select <= push;
-    assign dout_temp = dout_temp_select ? dout_temp_in : dout_temp_out;
-
-    ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH))
+    ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
         data(.clk(clk),
-            .doa(dout_final_out), .wia(), .raddra(tosp_n), .waddra(), .rea(!((branch_tosp == tosp_n) && commit_push)), .wea(1'b0),
-            .wib(branch_din), .dob(dout_final_in), .raddrb(), .waddrb(branch_tosp), .reb(1'b0), .web(commit_push));
+            .doa(    stage_dout[STAGES] ), .wia(        ),
+            .raddra( tosp_n             ), .waddra(     ),
+            .rea(    1'b1               ), .wea(   1'b0 ),
+
+            .dob(),          .wib(    stage_data[STAGES]                    ),
+            .raddrb(),       .waddrb( stage_addr[STAGES]                    ),
+            .reb(    1'b0 ), .web(    stage_push[STAGES] && trigger[STAGES] ));
     /* verilator lint_on PINCONNECTEMPTY */
-    always_ff @(posedge clk) dout_final_select <= ((branch_tosp == tosp_n) && commit_push);
-    assign dout_final = dout_final_select ? dout_final_in : dout_final_out;
 
-
-    assign dout = (pending_push_visible != 0) ? dout_temp : dout_final;
+    always_comb begin
+        dout = stage_dout[STAGES];
+        for (int i = STAGES - 1; i >= 0 ; i--)
+            if(stage_dout_valid[i]) dout = stage_dout[i];
+    end
 
 endmodule : ras
