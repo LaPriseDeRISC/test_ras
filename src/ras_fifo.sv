@@ -1,3 +1,4 @@
+
 module ras_fifo (clk, rst, push, pop, empty, din, dout);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
@@ -26,7 +27,7 @@ module ras_fifo (clk, rst, push, pop, empty, din, dout);
             if (pop ^ push) empty <= (pop && (raddr + 1'b1 == waddr));
         end
     end
-    assign dout = empty ? din : ram[raddr];
+    assign dout = ram[raddr];
     
 endmodule
 
