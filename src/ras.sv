@@ -61,7 +61,7 @@ module ras (
 
     for (genvar i = 0; i < STAGES; i++) begin
         ras_stage #(.DEPTH(MAX_BRANCHES), .WIDTH(WIDTH), .ADDR_WIDTH(ADDR))
-            stage(.clk(clk), .reset(flush[i]),
+            stage(.clk(clk), .reset(flush[i] || reset),
                 .trigger(trigger[i]), .commit(commit[i]),
                 .pop_i(stage_pop[i]), .push_i(stage_push[i]),
                 .addr_i(stage_addr[i]), .data_i(stage_data[i]),

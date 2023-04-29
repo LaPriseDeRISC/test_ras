@@ -23,10 +23,10 @@ module ras_stage (
     output logic [WIDTH-1:0] dout;
     output logic valid;
 
+    logic [ADDR-1:0] pending_push_masked, pending_push_visible;
+    logic [ADDR-1:0] base_addr_reg;
 
     assign valid = (pending_push_visible != 0);
-
-    logic [ADDR-1:0] pending_push_masked, pending_push_visible;
 
     /* verilator lint_off PINCONNECTEMPTY */
     ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
@@ -55,9 +55,14 @@ module ras_stage (
                                     - ADDR'((pending_push_masked == 0) && commit && push_o);
     end
 
+    always_comb begin
+        base_addr = base_addr_reg;
+        if(trigger) base_addr = addr_i;
+    end
+
     always_ff @(posedge clk) begin
-        if(reset)        base_addr <= addr;
-        else if(trigger) base_addr <= addr_i;
+        if(reset) base_addr_reg <= addr;
+        else      base_addr_reg <= base_addr;
     end
 
     /* verilator lint_off PINCONNECTEMPTY */

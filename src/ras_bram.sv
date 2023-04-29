@@ -11,17 +11,23 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
     output logic [WIDTH-1:0] doa,dob;
     reg [WIDTH-1:0] ram [DEPTH-1:0]/*verilator public*/;
 
-    wire collision = RESOLVE_COLLIDE && (addra == addrb) && (rea || wea) && (reb || web);
-    wire forward_a = collision && web;
-    wire forward_b = collision && wea;
+    logic forward_a, forward_b;
     wire [ADDR-1:0] addra = wea ? waddra : raddra;
     wire [ADDR-1:0] addrb = web ? waddrb : raddrb;
-    wire ena = (rea || wea) && !forward_a;
-    wire enb = (reb || web) && !forward_b;
+    wire collision = RESOLVE_COLLIDE && (addra == addrb) && (rea || wea) && (reb || web);
+    wire forward_a_n = collision && web;
+    wire forward_b_n = collision && wea;
+    wire ena = (rea || wea) && !forward_a_n;
+    wire enb = (reb || web) && !forward_b_n;
     logic [WIDTH-1:0] ram_out_a, ram_out_b;
 
     assign doa = forward_a ? ram_out_b : ram_out_a;
     assign dob = forward_b ? ram_out_a : ram_out_b;
+
+    always_ff @(posedge clk) begin
+        forward_a <= forward_a_n;
+        forward_b <= forward_b_n;
+    end
 
     always @(posedge clk)
     begin
