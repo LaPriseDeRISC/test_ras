@@ -24,7 +24,7 @@ module ras_stage (
     output logic valid;
 
     logic [ADDR-1:0] pending_push_masked, pending_push_visible;
-    logic [ADDR-1:0] base_addr_reg;
+    logic [ADDR_WIDTH-1:0] base_addr_reg;
 
     assign valid = (pending_push_visible != 0);
 
