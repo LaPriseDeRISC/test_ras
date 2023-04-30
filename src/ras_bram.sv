@@ -9,7 +9,6 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
     input [ADDR-1:0] waddra, waddrb;
     input [WIDTH-1:0] wia, wib;
     output logic [WIDTH-1:0] doa,dob;
-    reg [WIDTH-1:0] ram [DEPTH-1:0]/*verilator public*/;
 
     logic forward_a, forward_b;
     wire [ADDR-1:0] addra = wea ? waddra : raddra;
@@ -28,15 +27,39 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
         forward_a <= forward_a_n;
         forward_b <= forward_b_n;
     end
-
+    
+    bram_impl #(.DEPTH(DEPTH), .WIDTH(WIDTH))
+        data (
+        .clk(clk), .ena(ena), .enb(enb),
+        .wea(wea), .web(web),
+        .addra(addra), .addrb(addrb),
+        .wia(wia), .wib(wib),
+        .doa(ram_out_a), .dob(ram_out_b)
+    );
+endmodule 
+    
+/* verilator lint_off DECLFILENAME */
+module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
+    parameter DEPTH = 1024;
+    parameter WIDTH = 36;
+    localparam ADDR = $clog2(DEPTH);
+    input clk, ena, enb, wea, web;
+    input [ADDR-1:0] addra, addrb;
+    input [WIDTH-1:0] wia, wib;
+    output logic [WIDTH-1:0] doa,dob;
+    reg [WIDTH-1:0] ram [DEPTH-1:0]/*verilator public*/;
+    for(genvar i = 0; i< DEPTH; i++) begin
+        initial ram[i] = WIDTH'(0);
+    end
+    
     always @(posedge clk)
     begin
         if (ena)
         begin
             if (wea) begin
                 ram[addra] <= wia;
-                ram_out_a <= wia;
-            end else ram_out_a <= ram[addra];
+                doa <= wia;
+            end else doa <= ram[addra];
         end
     end
 
@@ -46,10 +69,10 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
         begin
             if (web) begin
                 ram[addrb] <= wib;
-                ram_out_b <= wib;
-            end else ram_out_b <= ram[addrb];
+                dob <= wib;
+            end else dob <= ram[addrb];
         end
     end
 endmodule 
-
+/* verilator lint_on DECLFILENAME */
 
