@@ -21,7 +21,9 @@ module ras (
     /* verilator lint_on UNUSEDSIGNAL */
 
     logic                           reset;
+    /* verilator lint_off UNOPTFLAT */
     logic [ADDR-1:0]                tosp, tosp_n, bosp;
+    /* verilator lint_on UNOPTFLAT */
 
     wire [STAGES:0]            stage_push;
     /* verilator lint_off UNUSEDSIGNAL */
@@ -31,17 +33,17 @@ module ras (
     wire [STAGES:0][ADDR-1:0]  stage_addr;
     wire [STAGES:0][ADDR-1:0]  stage_base_addr;
     wire [STAGES:0][WIDTH-1:0] stage_dout;
-    wire [STAGES:0]            stage_dout_valid;
+    wire [STAGES-1:0]          stage_dout_valid;
     wire [STAGES:0]            trigger = {commit, pop || push};
 
     always_ff @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
                                                else reset <= 1'b0;
 
     always_comb begin
-            tosp_n = tosp - ADDR'(pop) + ADDR'(push);
-            for (int i = 0; i < STAGES ; i++)
-                if(flush[i]) tosp_n = stage_base_addr[i+1];
-            if(reset)        tosp_n = ADDR'(0);
+        tosp_n = tosp - ADDR'(pop) + ADDR'(push);
+        for (int i = 0; i < STAGES ; i++)
+            if(flush[i]) tosp_n = stage_base_addr[i+1];
+        if(reset)        tosp_n = ADDR'(0);
     end
 
     always_ff @(posedge clk) tosp <= tosp_n;
@@ -71,15 +73,15 @@ module ras (
                 .base_addr(stage_base_addr[i]));
     end
 
-    logic [ADDR-1:0] commit_tosp;
-    always_ff @(posedge clk) begin
-        if(reset || (|flush)) commit_tosp <= tosp_n;
-        else if(trigger[STAGES])
-            commit_tosp <= stage_addr[STAGES];
-    end
 
-    assign stage_base_addr[STAGES] = commit_tosp;
-    assign stage_dout_valid[STAGES] = 1'b1;
+    logic [ADDR-1:0] base_addr_reg, base_addr;
+    always_comb begin
+        base_addr = base_addr_reg;
+        if(trigger[STAGES]) base_addr = stage_addr[STAGES];
+    end
+    always_ff @(posedge clk) base_addr_reg <= base_addr;
+
+    assign stage_base_addr[STAGES] = base_addr;
 
     /* verilator lint_off PINCONNECTEMPTY */
     ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
