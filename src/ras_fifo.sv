@@ -8,6 +8,11 @@ module ras_fifo (clk, rst, push, pop, empty, din, dout);
     input [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
     reg [WIDTH-1:0] ram [DEPTH-1:0];
+
+    for(genvar i = 0; i< DEPTH; i++) begin
+        initial ram[i] = WIDTH'(0);
+    end
+
     logic [ADDR-1:0] raddr, waddr;
     initial empty = 1'b1;
     
