@@ -76,10 +76,14 @@ module ras (
 
     logic [ADDR-1:0] base_addr_reg, base_addr;
     always_comb begin
-        base_addr = base_addr_reg;
         if(trigger[STAGES]) base_addr = stage_addr[STAGES];
+        else base_addr = base_addr_reg;
     end
-    always_ff @(posedge clk) base_addr_reg <= base_addr;
+
+    always_ff @(posedge clk) begin
+        if(reset) base_addr_reg <= ADDR'(0);
+        else      base_addr_reg <= base_addr;
+    end
 
     assign stage_base_addr[STAGES] = base_addr;
 
