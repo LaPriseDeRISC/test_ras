@@ -1,28 +1,29 @@
 
 module ras (
-    clk, rst_ni,
+    clk, rst_ni, rst_i,
     pop, push,
     commit,
     flush,
-    din, dout, empty);
+    din, dout, valid);
     parameter STAGES = 2;
     parameter WIDTH = 32;
     parameter DEPTH = 1024;
     localparam ADDR = $clog2(DEPTH);
     parameter MAX_BRANCHES = 16;
     /* verilator lint_off UNUSEDSIGNAL */
-    input logic  clk, rst_ni;
+    input logic  clk, rst_ni, rst_i;
     input logic  pop, push;
     input logic [STAGES-1:0] commit;
     input logic [STAGES-1:0] flush;
     input logic [WIDTH-1:0] din;
     output logic [WIDTH-1:0] dout;
-    output logic empty;
+    output logic valid;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    logic                           reset;
+    logic                           reset, empty, full;
     /* verilator lint_off UNOPTFLAT */
-    logic [ADDR-1:0]                tosp, tosp_n, bosp;
+    logic [ADDR-1:0]                tosp, tosp_n, bosp, empty_start;
+    wire  [ADDR-1:0]                last_addr, empty_start_n;
     /* verilator lint_on UNOPTFLAT */
 
     wire [STAGES:0]            stage_push;
@@ -36,25 +37,42 @@ module ras (
     wire [STAGES-1:0]          stage_dout_valid;
     wire [STAGES:0]            trigger = {commit, pop || push};
 
+    `ifdef RAS_LINKED
+    NOT IMPLEMENTED YET
+    `else
+    assign last_addr = tosp - 1;
+    assign empty_start_n = tosp_n + 1;
+    `endif
+
+    initial tosp =          ADDR'(0);
+    initial empty_start =   ADDR'(1);
+
     always_ff @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
-                                               else reset <= 1'b0;
+                                               else        reset <= rst_i;
 
     always_comb begin
-        tosp_n = tosp - ADDR'(pop) + ADDR'(push);
-        for (int i = 0; i < STAGES ; i++)
-            if(flush[i]) tosp_n = stage_base_addr[i+1];
-        if(reset)        tosp_n = ADDR'(0);
+        tosp_n = tosp;
+        if(!reset) begin
+            if(pop && !push) tosp_n = last_addr;
+            if(push && !pop) tosp_n = empty_start;
+            //tosp_n = tosp - ADDR'(pop) + ADDR'(push);
+            for (int i = 0; i < STAGES ; i++)
+                if(flush[i]) tosp_n = stage_base_addr[i+1];
+        end
     end
 
-    always_ff @(posedge clk) tosp <= tosp_n;
+    always @(posedge clk) tosp <= tosp_n;
+    always @(posedge clk) empty_start <= empty_start_n;
 
     always_ff @(posedge clk) begin
-        if(reset)                           bosp <= ADDR'(0);
-        else if(pop && empty)               bosp <= bosp - ADDR'(1); // underflow
-        else if(push && (tosp_n == bosp))   bosp <= bosp + ADDR'(1); // overflow
+        if(reset)               bosp <= tosp;
+        else if(pop && empty)   bosp <= last_addr; // underflow
+        else if(push && full)   bosp <= empty_start_n; // overflow
     end
 
     assign empty = (tosp == bosp);
+    assign full = (empty_start == bosp);
+    assign valid = !empty;
 
     assign stage_push[0] = push;
     assign stage_pop[0] = pop;
