@@ -6,7 +6,7 @@ module ras (
     flush,
     din, dout, valid);
     parameter STAGES = 2;
-    parameter WIDTH = 32;
+    parameter WIDTH = 31;
     parameter DEPTH = 1024;
     localparam ADDR = $clog2(DEPTH);
     parameter MAX_BRANCHES = 16;
@@ -20,9 +20,9 @@ module ras (
     output logic valid;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    logic                           reset, empty, full;
+    logic                           reset;
     /* verilator lint_off UNOPTFLAT */
-    logic [ADDR-1:0]                tosp, tosp_n, bosp, empty_start;
+    logic [ADDR-1:0]                tosp, tosp_n, empty_start;
     wire  [ADDR-1:0]                last_addr, empty_start_n;
     /* verilator lint_on UNOPTFLAT */
 
@@ -34,7 +34,7 @@ module ras (
     wire [STAGES:0][ADDR-1:0]  stage_addr;
     wire [STAGES:0][ADDR-1:0]  stage_base_addr;
     wire [STAGES:0][WIDTH-1:0] stage_dout;
-    wire [STAGES-1:0]          stage_dout_valid;
+    wire [STAGES:0]            stage_dout_valid;
     wire [STAGES:0]            trigger = {commit, pop || push};
 
     `ifdef RAS_LINKED
@@ -63,16 +63,6 @@ module ras (
 
     always @(posedge clk) tosp <= tosp_n;
     always @(posedge clk) empty_start <= empty_start_n;
-
-    always_ff @(posedge clk) begin
-        if(reset)               bosp <= tosp;
-        else if(pop && empty)   bosp <= last_addr; // underflow
-        else if(push && full)   bosp <= empty_start_n; // overflow
-    end
-
-    assign empty = (tosp == bosp);
-    assign full = (empty_start == bosp);
-    assign valid = !empty;
 
     assign stage_push[0] = push;
     assign stage_pop[0] = pop;
@@ -106,21 +96,22 @@ module ras (
     assign stage_base_addr[STAGES] = base_addr;
 
     /* verilator lint_off PINCONNECTEMPTY */
-    ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
+    ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH + 1), .RESOLVE_COLLIDE(1))
         data(.clk(clk),
-            .doa(    stage_dout[STAGES] ), .wia(        ),
+            .doa(    {stage_dout[STAGES], stage_dout_valid[STAGES]} ), .wia(        ),
             .raddra( tosp_n             ), .waddra(     ),
             .rea(    1'b1               ), .wea(   1'b0 ),
 
-            .dob(),          .wib(    stage_data[STAGES]                    ),
-            .raddrb(),       .waddrb( stage_addr[STAGES]                    ),
-            .reb(    1'b0 ), .web(    stage_push[STAGES] && trigger[STAGES] ));
+            .dob(),          .wib( { stage_data[STAGES], stage_push[STAGES] }),
+            .raddrb(),       .waddrb( stage_push[STAGES] ? stage_addr[STAGES] : base_addr_reg),
+            .reb(    1'b0 ), .web(    trigger[STAGES] ));
     /* verilator lint_on PINCONNECTEMPTY */
 
     always_comb begin
         dout = stage_dout[STAGES];
         for (int i = STAGES - 1; i >= 0 ; i--)
             if(stage_dout_valid[i]) dout = stage_dout[i];
+        valid = (|stage_dout_valid);
     end
 
 endmodule : ras
