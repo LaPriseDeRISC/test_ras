@@ -4,6 +4,8 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);
     parameter RESOLVE_COLLIDE = 0;
+    parameter OFS = 0;
+    parameter INCR = 0;
     input clk,rea,reb,wea,web;
     input [ADDR-1:0] raddra, raddrb;
     input [ADDR-1:0] waddra, waddrb;
@@ -28,7 +30,7 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
         forward_b <= forward_b_n;
     end
     
-    bram_impl #(.DEPTH(DEPTH), .WIDTH(WIDTH))
+    bram_impl #(.DEPTH(DEPTH), .WIDTH(WIDTH), .OFS(OFS), .INCR(INCR))
         data (
         .clk(clk), .ena(ena), .enb(enb),
         .wea(wea), .web(web),
@@ -43,15 +45,18 @@ module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);
+    parameter OFS = 0;
+    parameter INCR = 0;
     input clk, ena, enb, wea, web;
     input [ADDR-1:0] addra, addrb;
     input [WIDTH-1:0] wia, wib;
     output logic [WIDTH-1:0] doa,dob;
     reg [WIDTH-1:0] ram [DEPTH-1:0]/*verilator public*/;
     for(genvar i = 0; i< DEPTH; i++) begin
-        initial ram[i] = WIDTH'(0);
+        initial ram[i] = WIDTH'(OFS + (i * INCR));
     end
-    
+
+    initial doa = OFS;
     always @(posedge clk)
     begin
         if (ena)
@@ -63,6 +68,7 @@ module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
         end
     end
 
+    initial dob = OFS;
     always @(posedge clk)
     begin
         if (enb)
