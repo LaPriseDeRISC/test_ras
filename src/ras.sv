@@ -23,8 +23,7 @@ module ras (
 
     logic                           reset;
     /* verilator lint_off UNOPTFLAT */
-    logic [ADDR-1:0]                tosp, tosp_n, empty_start;
-    wire  [ADDR-1:0]                last_addr, empty_start_n;
+    logic [ADDR-1:0]                tosp, tosp_n, empty_start, last_addr;
     /* verilator lint_on UNOPTFLAT */
 
     wire [STAGES:0]            stage_push;
@@ -41,15 +40,15 @@ module ras (
     `ifdef RAS_LINKED
     NOT IMPLEMENTED YET
     `else
-    assign last_addr = tosp - 1;
-    assign empty_start_n = tosp_n + 1;
+    initial empty_start =   ADDR'(1);
+    initial last_addr =     ADDR'(-1);
+    always @(posedge clk) last_addr <=   tosp_n - 1;
+    always @(posedge clk) empty_start <= tosp_n + 1;
     `endif
 
-    initial tosp =          ADDR'(0);
-    initial empty_start =   ADDR'(1);
-
-    always_ff @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
-                                               else        reset <= rst_i;
+    initial reset = 1;
+    always @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
+                                            else        reset <= rst_i;
 
     always_comb begin
         tosp_n = tosp;
@@ -62,8 +61,8 @@ module ras (
         end
     end
 
+    initial               tosp = ADDR'(0);
     always @(posedge clk) tosp <= tosp_n;
-    always @(posedge clk) empty_start <= empty_start_n;
 
     assign stage_push[0] = push;
     assign stage_pop[0] = pop;
