@@ -6,10 +6,11 @@ module ras_stage (
     trigger, commit,
     base_addr, addr, dout, valid);
 
-    parameter DEPTH = 16;
-    localparam ADDR = $clog2(DEPTH);
+    parameter SCRATCHPAD_DEPTH = 16;
+    parameter DEPTH = 1024;
+    localparam ADDR = $clog2(SCRATCHPAD_DEPTH);
     parameter WIDTH = 32;
-    parameter ADDR_WIDTH = 10;
+    localparam ADDR_WIDTH = $clog2(DEPTH);;
 
     input logic clk, reset, trigger, commit;
     input logic pop_i, push_i;
@@ -29,7 +30,7 @@ module ras_stage (
     assign valid = (pending_push_visible != 0);
 
     /* verilator lint_off PINCONNECTEMPTY */
-    ras_bram #(.DEPTH(DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
+    ras_bram #(.DEPTH(SCRATCHPAD_DEPTH), .WIDTH(WIDTH), .RESOLVE_COLLIDE(1))
         scratchpad(.clk(clk),
             .doa(    dout        ), .wia(       ),
             .raddra( ADDR'(addr) ), .waddra(    ),
@@ -66,7 +67,7 @@ module ras_stage (
     end
 
     /* verilator lint_off PINCONNECTEMPTY */
-    ras_fifo #(.DEPTH(DEPTH), .WIDTH(WIDTH + ADDR_WIDTH + 1 + 1))
+    ras_fifo #(.DEPTH(SCRATCHPAD_DEPTH), .WIDTH(WIDTH + ADDR_WIDTH + 1 + 1))
         pending_actions(.clk(clk),
             .rst(reset),
             .push(trigger),

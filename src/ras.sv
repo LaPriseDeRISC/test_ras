@@ -9,7 +9,8 @@ module ras (
     parameter WIDTH = 31;
     parameter DEPTH = 1024;
     localparam ADDR = $clog2(DEPTH);
-    parameter MAX_BRANCHES = 16;
+    parameter SCRATCHPAD_DEPTH = 16;
+    localparam SCRATCHPAD_ADDR = $clog2(SCRATCHPAD_DEPTH);
     /* verilator lint_off UNUSEDSIGNAL */
     input logic  clk, rst_ni, rst_i;
     input logic  pop, push;
@@ -70,7 +71,7 @@ module ras (
     assign stage_data[0] = din;
 
     for (genvar i = 0; i < STAGES; i++) begin
-        ras_stage #(.DEPTH(MAX_BRANCHES), .WIDTH(WIDTH), .ADDR_WIDTH(ADDR))
+        ras_stage #(.WIDTH(WIDTH), .DEPTH(DEPTH), .SCRATCHPAD_DEPTH(SCRATCHPAD_DEPTH))
             stage(.clk(clk), .reset(flush[i] || reset),
                 .trigger(trigger[i]), .commit(commit[i]),
                 .pop_i(stage_pop[i]), .push_i(stage_push[i]),
