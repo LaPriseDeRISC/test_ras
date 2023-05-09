@@ -21,9 +21,9 @@ module ras (
     output logic valid;
     /* verilator lint_on UNUSEDSIGNAL */
 
-    logic                           reset;
+    logic                           reset, incr, decr, set_tosp;
     /* verilator lint_off UNOPTFLAT */
-    logic [ADDR-1:0]                tosp, tosp_n, empty_start, last_addr;
+    logic [ADDR-1:0]                new_tosp, tosp_n;
     /* verilator lint_on UNOPTFLAT */
 
     wire [STAGES:0]            stage_push;
@@ -40,29 +40,30 @@ module ras (
     `ifdef RAS_LINKED
     NOT IMPLEMENTED YET
     `else
-    initial empty_start =   ADDR'(1);
-    initial last_addr =     ADDR'(-1);
-    always @(posedge clk) last_addr <=   tosp_n - 1;
-    always @(posedge clk) empty_start <= tosp_n + 1;
+    logic [ADDR-1:0] tosp;
+    initial               tosp = ADDR'(0);
+    always @(posedge clk) tosp <= tosp_n;
+    always_comb begin
+        tosp_n = tosp;
+        if(decr) tosp_n = tosp - 1;
+        if(incr) tosp_n = tosp + 1;
+        if(set_tosp) tosp_n = new_tosp;
+    end
     `endif
 
     initial reset = 1;
     always @(posedge clk or negedge rst_ni) if(!rst_ni) reset <= 1'b1;
                                             else        reset <= rst_i;
 
-    always_comb begin
-        tosp_n = tosp;
-        if(!reset) begin
-            if(pop && !push) tosp_n = last_addr;
-            if(push && !pop) tosp_n = empty_start;
-            //tosp_n = tosp - ADDR'(pop) + ADDR'(push);
-            for (int i = 0; i < STAGES ; i++)
-                if(flush[i]) tosp_n = stage_base_addr[i+1];
-        end
-    end
+    assign decr = (pop && !push);
+    assign incr = (push && !pop);
+    assign set_tosp = (|flush);
 
-    initial               tosp = ADDR'(0);
-    always @(posedge clk) tosp <= tosp_n;
+    always_comb begin
+        new_tosp = tosp;
+        for (int i = 0; i < STAGES ; i++)
+            if(flush[i]) new_tosp = stage_base_addr[i+1];
+    end
 
     assign stage_push[0] = push;
     assign stage_pop[0] = pop;
