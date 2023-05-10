@@ -38,7 +38,16 @@ module ras (
     wire [STAGES:0]            trigger = {commit, pop || push};
 
     `ifdef RAS_LINKED
-    NOT IMPLEMENTED YET
+    ras_links #(.DEPTH(DEPTH), .SCRATCHPAD_DEPTH(SCRATCHPAD_DEPTH))
+     links (
+        .clk, .reset,
+        .incr, .decr,
+        .gen_addr(1'b0),
+        .set_addr,
+        .addr_in(tosp),
+        .addr_out(tosp_n),
+        .valid(),
+        .full());
     `else
     logic [ADDR-1:0] tosp;
     initial               tosp = ADDR'(0);

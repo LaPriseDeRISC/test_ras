@@ -4,6 +4,7 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
     parameter WIDTH = 36;
     localparam ADDR = $clog2(DEPTH);
     parameter RESOLVE_COLLIDE = 0;
+    parameter READ_FIRST = 0;
     parameter OFS = 0;
     parameter INCR = 0;
     input clk,rea,reb,wea,web;
@@ -30,7 +31,7 @@ module ras_bram (clk,rea,reb,wea,web,raddra,raddrb,waddra,waddrb,wia,wib,doa,dob
         forward_b <= forward_b_n;
     end
     
-    bram_impl #(.DEPTH(DEPTH), .WIDTH(WIDTH), .OFS(OFS), .INCR(INCR))
+    bram_impl #(.DEPTH(DEPTH), .WIDTH(WIDTH), .OFS(OFS), .INCR(INCR), .READ_FIRST(READ_FIRST))
         data (
         .clk(clk), .ena(ena), .enb(enb),
         .wea(wea), .web(web),
@@ -44,6 +45,7 @@ endmodule
 module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
     parameter DEPTH = 1024;
     parameter WIDTH = 36;
+    parameter READ_FIRST = 0;
     localparam ADDR = $clog2(DEPTH);
     parameter OFS = 0;
     parameter INCR = 0;
@@ -61,10 +63,9 @@ module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
     begin
         if (ena)
         begin
-            if (wea) begin
-                ram[addra] <= wia;
-                doa <= wia;
-            end else doa <= ram[addra];
+            if (wea)                ram[addra] <= wia;
+            if (wea && !READ_FIRST) doa <= wia;
+            if (!wea || READ_FIRST) doa <= ram[addra];
         end
     end
 
@@ -73,10 +74,9 @@ module bram_impl (clk,ena,enb,wea,web,addra,addrb,wia,wib,doa,dob);
     begin
         if (enb)
         begin
-            if (web) begin
-                ram[addrb] <= wib;
-                dob <= wib;
-            end else dob <= ram[addrb];
+            if (web)                ram[addrb] <= wib;
+            if (web && !READ_FIRST) dob <= wib;
+            if (!web || READ_FIRST) dob <= ram[addrb];
         end
     end
 endmodule 
